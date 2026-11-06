@@ -1,0 +1,40 @@
+# Dependências
+node_modules/
+.pnp
+.pnp.js
+
+# Build
+dist/
+dist-ssr/
+build/
+*.local
+
+# Ambiente (o app tem o seu próprio .env em app/)
+.env
+.env.local
+.env.*.local
+
+# Forge: cofre e importações de segredo (NUNCA commitar)
+.forge/
+**/.forge/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Resíduo de protótipos e do npm install rodado na raiz (o app de verdade fica em app/)
+/package.json
+/package-lock.json
+/*.html
+
+# Sistema / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.suo
+*.sw?
