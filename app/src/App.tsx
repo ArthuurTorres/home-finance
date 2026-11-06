@@ -23,11 +23,10 @@ import { FinancialCalendar } from './components/FinancialCalendar/FinancialCalen
 import { InstallmentMap } from './components/InstallmentMap/InstallmentMap'
 import { ImportModal } from './components/ImportModal/ImportModal'
 import { DashboardStack } from './components/DashboardStack/DashboardStack'
-import { SidebarMiniCalendar } from './components/SidebarMiniCalendar/SidebarMiniCalendar'
 import { formatBRL, type DashboardBlockId } from './utils/finance'
 
 export default function App() {
-  const { user, loading } = useAuth()
+  const { user, loading, signOut } = useAuth()
 
   if (loading) {
     return (
@@ -157,7 +156,16 @@ export default function App() {
               Home Finance
             </h1>
             <p className="text-xs text-text-tertiary mt-0.5">Controle Financeiro Doméstico</p>
-            <p className="text-[10px] text-text-tertiary/60 mt-1 italic">by Arthur e Raquel</p>
+
+            <button
+              onClick={() => { void signOut() }}
+              className="mt-2 flex items-center gap-1.5 text-[10px] font-medium text-text-tertiary/70 hover:text-accent transition-colors"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Sair
+            </button>
           </header>
 
           {/* Abas de Navegação Lateral */}
@@ -324,8 +332,6 @@ export default function App() {
               Gerenciar Categorias
             </button>
 
-            {/* Mini calendário de fluxo - preenche área vazia */}
-            <SidebarMiniCalendar />
           </div>
         </aside>
 
