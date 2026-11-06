@@ -1,0 +1,222 @@
+@import "tailwindcss";
+
+@theme {
+  /* Claude-inspired neutral palette */
+  --color-surface: #ffffff;
+  --color-surface-muted: #f9fafb;
+  --color-surface-hover: #f3f4f6;
+  --color-border: #e5e7eb;
+  --color-border-strong: #d1d5db;
+  --color-text-primary: #111827;
+  --color-text-secondary: #6b7280;
+  --color-text-tertiary: #9ca3af;
+  --color-accent: #d4603a;
+  --color-accent-hover: #b84a28;
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+
+  /* Keep legacy tokens mapped for compatibility */
+  --color-nude-50: #ffffff;
+  --color-nude-100: #f9fafb;
+  --color-nude-200: #e5e7eb;
+  --color-nude-300: #d1d5db;
+  --color-nude-400: #9ca3af;
+  --color-nude-500: #6b7280;
+  --color-nude-600: #4b5563;
+  --color-nude-700: #374151;
+  --color-nude-800: #1f2937;
+  --color-nude-900: #111827;
+
+  --color-terracotta-50: #fff7ed;
+  --color-terracotta-100: #ffedd5;
+  --color-terracotta-200: #fed7aa;
+  --color-terracotta-300: #fdba74;
+  --color-terracotta-400: #fb923c;
+  --color-terracotta-500: #d4603a;
+  --color-terracotta-600: #b84a28;
+  --color-terracotta-700: #94381e;
+  --color-terracotta-800: #702a16;
+  --color-terracotta-900: #4d1d0f;
+
+  --font-display: 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-text-primary font-body antialiased m-0 overflow-hidden text-sm leading-relaxed;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight text-text-primary;
+  }
+
+  #root {
+    @apply w-full h-screen relative;
+  }
+
+  /* Refined inputs */
+  input, select, textarea {
+    @apply transition-all duration-150 ease-in-out;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    @apply outline-none ring-2 ring-accent/20 border-accent/50;
+  }
+}
+
+/* Clean card utility */
+.card {
+  @apply bg-surface border border-border rounded-lg shadow-sm;
+}
+
+.card-muted {
+  @apply bg-surface-muted border border-border rounded-lg;
+}
+
+/* Toast animation */
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(1rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out forwards;
+}
+
+/* Minimal scrollbar */
+.hud-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.hud-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.hud-scroll::-webkit-scrollbar-thumb {
+  @apply bg-border-strong rounded-full;
+}
+
+.hud-scroll::-webkit-scrollbar-thumb:hover {
+  @apply bg-text-tertiary;
+}
+
+/* 3D Card utilities */
+.perspective-1000 {
+  perspective: 1000px;
+}
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+.backface-hidden {
+  backface-visibility: hidden;
+}
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+/* Floating animation for illustrations */
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.animate-float-slow {
+  animation: float-slow 3s ease-in-out infinite;
+}
+
+/* House breathing animation */
+@keyframes house-breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-3px) scale(1.02); }
+}
+.animate-house-breathe {
+  animation: house-breathe 4s ease-in-out infinite;
+}
+
+/* Window glow pulse */
+@keyframes window-glow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.9; }
+}
+.animate-window-glow {
+  animation: window-glow 2.5s ease-in-out infinite;
+}
+
+/* Smoke rising from chimney */
+@keyframes smoke-rise {
+  0% { transform: translateY(0); opacity: 0.4; }
+  100% { transform: translateY(-6px); opacity: 0; }
+}
+.animate-smoke-rise {
+  animation: smoke-rise 2s ease-out infinite;
+}
+
+/* House Isometric 3D Float Animation */
+@keyframes house-iso-float {
+  0% { transform: translateY(0) rotateX(10deg) rotateY(-5deg); }
+  50% { transform: translateY(-8px) rotateX(12deg) rotateY(5deg); }
+  100% { transform: translateY(0) rotateX(10deg) rotateY(-5deg); }
+}
+.animate-house-iso-float {
+  animation: house-iso-float 6s ease-in-out infinite;
+  transform-style: preserve-3d;
+}
+
+/* Slow Pulse for Vegetation */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; transform: scale(1) translateZ(12px); }
+  50% { opacity: 0.85; transform: scale(1.05) translateZ(15px); }
+}
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}
+
+/* Gentle Float for Premium Illustrations */
+@keyframes float-gentle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.animate-float-gentle {
+  animation: float-gentle 4s ease-in-out infinite;
+}
+
+/* Narrative House Animations */
+@keyframes door-open {
+  0%, 15% { transform: scaleX(1); }
+  25%, 75% { transform: scaleX(0.15); }
+  85%, 100% { transform: scaleX(1); }
+}
+.animate-door-open {
+  animation: door-open 8s ease-in-out infinite;
+}
+
+@keyframes light-on {
+  0%, 20% { opacity: 0; }
+  30%, 70% { opacity: 0.9; }
+  80%, 100% { opacity: 0; }
+}
+.animate-light-on {
+  animation: light-on 8s ease-in-out infinite;
+}
+
+@keyframes smoke-strong {
+  0%, 30% { opacity: 0; transform: translateY(0) scale(0.8); }
+  40% { opacity: 0.8; }
+  70% { opacity: 0.6; transform: translateY(-8px) scale(1.1); }
+  80%, 100% { opacity: 0; transform: translateY(-12px) scale(1.2); }
+}
+.animate-smoke-strong {
+  animation: smoke-strong 8s ease-out infinite;
+}
+
+@keyframes family-enter {
+  0% { transform: translateX(-15px); opacity: 0; }
+  15% { opacity: 1; }
+  35%, 65% { transform: translateX(28px); opacity: 1; }
+  80% { transform: translateX(28px); opacity: 0; }
+  85%, 100% { transform: translateX(-15px); opacity: 0; }
+}
+.animate-family-enter {
+  animation: family-enter 8s ease-in-out infinite;
+}
