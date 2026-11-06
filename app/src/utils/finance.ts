@@ -669,6 +669,62 @@ export function getDailySpending(expenses: Expense[], month: string): Record<num
   return days
 }
 
+/**
+ * Itens detalhados de um dia para o calendário.
+ * Inclui a descrição e o valor, separados por fixo (dueDay) e variável (date).
+ */
+export interface DailyDetailItem {
+  description: string
+  amount: number // centavos
+}
+
+export interface DailyDetail {
+  fixed: DailyDetailItem[]
+  variable: DailyDetailItem[]
+}
+
+/**
+ * Resumo diário detalhado para o calendário: separado entre fixos (isRecurring, pelo dueDay)
+ * e variáveis (não-recorrentes, pela data real). Cada item contém descrição e valor.
+ */
+export function getDailyDetail(
+  expenses: Expense[],
+  month: string
+): Record<number, DailyDetail> {
+  const days: Record<number, DailyDetail> = {}
+  for (const { expense, amount } of getMonthEntries(expenses, month)) {
+    if (expense.type === 'income') continue
+    const day = expense.isRecurring
+      ? expense.dueDay
+      : parseLocalDate(expense.date).getDate()
+    if (!Number.isFinite(day) || day < 1 || day > 31) continue
+    if (!days[day]) days[day] = { fixed: [], variable: [] }
+    const item: DailyDetailItem = { description: expense.description, amount }
+    if (expense.isRecurring) {
+      days[day]!.fixed.push(item)
+    } else {
+      days[day]!.variable.push(item)
+    }
+  }
+  return days
+}
+
+/** Versão resumida (totais apenas) — usada pelo teste legado e pelo código que não precisa de detalhe. */
+export function getDailySummary(
+  expenses: Expense[],
+  month: string
+): Record<number, { fixed: number; variable: number }> {
+  const detail = getDailyDetail(expenses, month)
+  const result: Record<number, { fixed: number; variable: number }> = {}
+  for (const [day, d] of Object.entries(detail)) {
+    result[Number(day)] = {
+      fixed: d.fixed.reduce((s, i) => s + i.amount, 0),
+      variable: d.variable.reduce((s, i) => s + i.amount, 0),
+    }
+  }
+  return result
+}
+
 // --- Alertas preditivos de orçamento ---
 
 export interface BudgetAlertItem {

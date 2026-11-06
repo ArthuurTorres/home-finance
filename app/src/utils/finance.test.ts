@@ -15,6 +15,8 @@ import {
 	getBudgetAlerts,
 	getMemberSpending,
 	getDailySpending,
+getDailySummary,
+	getDailyDetail,
 	getActiveInstallments,
 	getEssentialityMeta,
 	type Expense,
@@ -220,6 +222,40 @@ describe('getDailySpending', () => {
 			{ id: '550e8400-e29b-41d4-a716-446655440111', description: 'B', date: '2026-01-10', amount: 2500, dueDay: 10, installments: 1, paidInstallments: 0, isPaid: false, isRecurring: false, category: 'Outros', cardId: 'cash', type: 'expense' as const },
 		]
 		expect(getDailySpending(expenses, '2026-01')[10]).toBe(3500)
+	})
+})
+
+describe('getDailySummary', () => {
+	it('separa fixos (recorrentes pelo vencimento) de variáveis (pela data)', () => {
+		const expenses = [
+			{ id: '550e8400-e29b-41d4-a716-446655440130', description: 'Aluguel', date: '2026-01-05', amount: 150000, dueDay: 5, installments: 1, paidInstallments: 0, isPaid: false, isRecurring: true, category: 'Moradia', cardId: 'cash', type: 'expense' as const },
+			{ id: '550e8400-e29b-41d4-a716-446655440131', description: 'Mercado', date: '2026-01-05', amount: 32000, dueDay: 5, installments: 1, paidInstallments: 0, isPaid: false, isRecurring: false, category: 'Alimentação', cardId: 'cash', type: 'expense' as const },
+			{ id: '550e8400-e29b-41d4-a716-446655440132', description: 'Receita', date: '2026-01-05', amount: 500000, dueDay: 5, installments: 1, paidInstallments: 0, isPaid: false, isRecurring: false, category: 'Outros', cardId: 'cash', type: 'income' as const },
+		]
+		const summary = getDailySummary(expenses, '2026-01')
+		expect(summary[5]).toEqual({ fixed: 150000, variable: 32000 })
+	})
+
+it('ignora dias sem movimento', () => {
+		expect(getDailySummary([], '2026-01')[15]).toBeUndefined()
+	})
+})
+
+describe('getDailyDetail', () => {
+	it('lista descrição e valor de cada conta, separando fixos e variáveis', () => {
+		const expenses = [
+			{ id: '550e8400-e29b-41d4-a716-446655440140', description: 'Aluguel', date: '2026-01-05', amount: 150000, dueDay: 5, installments: 1, paidInstallments: 0, isPaid: false, isRecurring: true, category: 'Moradia', cardId: 'cash', type: 'expense' as const },
+			{ id: '550e8400-e29b-41d4-a716-446655440141', description: 'Internet', date: '2026-01-05', amount: 12000, dueDay: 5, installments: 1, paidInstallments: 0, isPaid: false, isRecurring: true, category: 'Moradia', cardId: 'cash', type: 'expense' as const },
+			{ id: '550e8400-e29b-41d4-a716-446655440142', description: 'Mercado', date: '2026-01-05', amount: 32000, dueDay: 5, installments: 1, paidInstallments: 0, isPaid: false, isRecurring: false, category: 'Alimentação', cardId: 'cash', type: 'expense' as const },
+		]
+		const detail = getDailyDetail(expenses, '2026-01')
+		expect(detail[5]).toEqual({
+			fixed: [
+				{ description: 'Aluguel', amount: 150000 },
+				{ description: 'Internet', amount: 12000 },
+			],
+			variable: [{ description: 'Mercado', amount: 32000 }],
+		})
 	})
 })
 
