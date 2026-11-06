@@ -28,20 +28,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return;
-      setState({
-        user: session?.user ?? null,
-        session,
-        loading: false,
-      });
+      setState({ user: session?.user ?? null, session, loading: false });
+    }).catch(() => {
+      // Rede indisponível: treating as logged out instead of stuck in loading
+      if (!mounted) return;
+      setState((prev) => ({ ...prev, loading: false }));
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
-      setState({
-        user: session?.user ?? null,
-        session,
-        loading: false,
-      });
+      setState({ user: session?.user ?? null, session, loading: false });
     });
 
     return () => {

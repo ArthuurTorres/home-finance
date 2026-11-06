@@ -98,13 +98,14 @@ export function LoginScreen() {
         } else if (m.includes('invalid login') || m.includes('wrong password') || m.includes('bad credentials')) {
           setStep('password');
         } else {
+          // Qualquer outro erro: manda para signup (e-mail provavelmente não existe)
           setStep('signup');
         }
       } else {
         setStep('signup');
       }
     } catch {
-      setStep('signup');
+      setError('Não foi possível conectar. Verifique sua internet.');
     }
     setVal('');
     setLoading(false);
