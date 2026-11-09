@@ -95,26 +95,26 @@ export function Projections() {
   return (
     <div className="space-y-6">
       {/* ── Métricas principais com hierarquia refinada ── */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-3 sm:gap-4">
         {/* Contas do Mês */}
-        <div className="relative overflow-hidden p-5 rounded-2xl bg-surface border border-border shadow-sm">
+        <div className="relative overflow-hidden p-4 sm:p-5 rounded-2xl bg-surface border border-border shadow-sm">
           <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-accent to-transparent opacity-60" />
           <p className="text-[10px] font-semibold text-accent uppercase tracking-widest mb-3">
             Despesas do Mês
           </p>
-          <p className="text-2xl font-display font-bold text-text-primary leading-none">
+          <p className="text-xl sm:text-2xl font-display font-bold text-text-primary leading-none">
             {formatBRL(currentTotal)}
           </p>
           <p className="text-[10px] text-text-tertiary mt-1.5">Saídas previstas neste mês</p>
         </div>
 
         {/* Despesas Próximo Mês */}
-        <div className="relative overflow-hidden p-5 rounded-2xl bg-surface border border-border shadow-sm">
+        <div className="relative overflow-hidden p-4 sm:p-5 rounded-2xl bg-surface border border-border shadow-sm">
           <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-accent to-transparent opacity-60" />
           <p className="text-[10px] font-semibold text-accent uppercase tracking-widest mb-3">
             Despesas Próx. Mês
           </p>
-          <p className="text-2xl font-display font-bold text-accent leading-none">
+          <p className="text-xl sm:text-2xl font-display font-bold text-accent leading-none">
             {formatBRL(nextMonthTotal)}
           </p>
           <p className="text-[10px] text-text-tertiary mt-1.5">
@@ -125,12 +125,12 @@ export function Projections() {
         </div>
 
         {/* Dívida */}
-        <div className="relative overflow-hidden p-5 rounded-2xl bg-surface border border-border shadow-sm">
+        <div className="relative overflow-hidden p-4 sm:p-5 rounded-2xl bg-surface border border-border shadow-sm">
           <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-danger to-transparent opacity-60" />
           <p className="text-[10px] font-semibold text-danger uppercase tracking-widest mb-3">
             Dívida Restante
           </p>
-          <p className="text-2xl font-display font-bold text-text-primary leading-none">
+          <p className="text-xl sm:text-2xl font-display font-bold text-text-primary leading-none">
             {formatBRL(totalDebt)}
           </p>
           <p className="text-[10px] text-text-tertiary mt-1.5">Parcelas a pagar</p>

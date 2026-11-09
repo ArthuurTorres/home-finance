@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useAuth } from './contexts/AuthContext'
 import { LoginScreen } from './components/LoginScreen/LoginScreen'
 import { useExpenseStore } from './store/useExpenseStore'
@@ -33,18 +33,6 @@ import { getBankSummary, type DashboardBlockId } from './utils/finance'
 export default function App() {
   const { user, loading, signOut } = useAuth()
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f7f4ef]">
-        <div className="animate-pulse text-[#c4704b] text-lg font-medium">Carregando...</div>
-      </div>
-    )
-  }
-
-  if (!user) {
-    return <LoginScreen />
-  }
-
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
   const [isCardManagerOpen, setIsCardManagerOpen] = useState(false)
@@ -53,6 +41,16 @@ export default function App() {
   const [activeView, setActiveView] = useState<'overview' | 'fixed' | 'cards' | 'banks'>('overview')
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
   const [focusedBlock, setFocusedBlock] = useState<DashboardBlockId | null>(null)
+  const [isNavOpen, setIsNavOpen] = useState(false)
+
+  useEffect(() => {
+    if (!isNavOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsNavOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isNavOpen])
 
   const expenses = useExpenseStore((s) => s.expenses)
   const filters = useExpenseStore((s) => s.filters)
@@ -91,16 +89,70 @@ export default function App() {
     [banks, expenses, filters.month]
   )
 
+  // Early returns depois de todos os hooks: as Regras dos Hooks exigem ordem estável
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f7f4ef]">
+        <div className="animate-pulse text-[#c4704b] text-lg font-medium">Carregando...</div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <LoginScreen />
+  }
+
   return (
     <ErrorBoundary>
-      <div className="flex h-screen w-full bg-surface text-text-primary overflow-hidden font-sans selection:bg-accent/20">
+      <div className="flex h-screen w-full flex-col lg:flex-row bg-surface text-text-primary overflow-hidden font-sans selection:bg-accent/20">
         
+        {/* Barra superior: só em telas pequenas, abre a navegação */}
+        <header className="lg:hidden flex flex-shrink-0 items-center gap-3 border-b border-border bg-surface px-4 py-3">
+          <button
+            type="button"
+            onClick={() => setIsNavOpen(true)}
+            aria-label="Abrir menu"
+            aria-expanded={isNavOpen}
+            aria-controls="app-nav"
+            className="-ml-1 rounded-lg p-2 text-text-secondary transition-colors hover:bg-surface-muted hover:text-accent"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+              <path d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <span className="text-sm font-semibold text-text-primary">Home Finance</span>
+        </header>
+
+        {isNavOpen && (
+          <button
+            type="button"
+            aria-label="Fechar menu"
+            onClick={() => setIsNavOpen(false)}
+            className="lg:hidden fixed inset-0 z-30 bg-text-primary/40 backdrop-blur-[2px]"
+          />
+        )}
+
         {/* Menu Lateral: Foco nos Cartões */}
-        <aside className="w-80 flex-shrink-0 border-r border-border bg-surface flex flex-col z-10">
+        <aside
+          id="app-nav"
+          className={`fixed inset-y-0 left-0 z-40 w-80 max-w-[85vw] border-r border-border bg-surface flex flex-col transition-transform duration-300 lg:static lg:z-10 lg:flex-shrink-0 lg:translate-x-0 ${
+            isNavOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
           {/* Header Compacto */}
-          <header className="px-6 py-5 border-b border-border flex flex-col items-center text-center">
+          <header className="relative px-5 py-3 border-b border-border flex flex-col items-center text-center">
+            <button
+              type="button"
+              onClick={() => setIsNavOpen(false)}
+              aria-label="Fechar menu"
+              className="lg:hidden absolute right-3 top-3 rounded-lg p-2 text-text-tertiary transition-colors hover:bg-surface-muted hover:text-text-primary"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
 {/* Ilustração Narrativa - Família chegando em casa */}
-              <div className="mb-4 relative w-28 h-28 flex items-center justify-center">
+              <div className="mb-1 relative w-14 h-14 flex items-center justify-center">
                 <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-lg" fill="none" xmlns="http://www.w3.org/2000/svg">
                   {/* Base/Gramado Suave */}
 	                  <ellipse cx="50" cy="88" rx="42" ry="6" fill="#d1fae5" />
@@ -165,14 +217,14 @@ export default function App() {
                 </svg>
               </div>
             
-            <h1 className="text-lg font-bold tracking-tight text-text-primary">
+            <h1 className="text-sm font-bold tracking-tight text-text-primary">
               Home Finance
             </h1>
-            <p className="text-xs text-text-tertiary mt-0.5">Controle Financeiro Doméstico</p>
+            <p className="text-[10px] text-text-tertiary mt-0.5">Controle Financeiro Doméstico</p>
 
             <button
               onClick={() => { void signOut() }}
-              className="mt-2 flex items-center gap-1.5 text-[10px] font-medium text-text-tertiary/70 hover:text-accent transition-colors"
+              className="mt-2 flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-medium text-text-tertiary transition-colors hover:bg-surface-muted hover:text-accent"
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -190,15 +242,16 @@ export default function App() {
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => { 
-                  setActiveView(tab.id); 
+                onClick={() => {
+                  setActiveView(tab.id);
+                  setIsNavOpen(false);
                   if (tab.id === 'cards' && cards.length > 0) {
                     setSelectedCardId(cards[0].id);
                   } else {
                     setSelectedCardId(null);
                   }
                 }}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-all ${
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wide transition-all ${
                   activeView === tab.id
                     ? 'bg-accent text-white shadow-sm'
                     : 'text-text-tertiary hover:bg-border/30 hover:text-text-secondary'
@@ -213,7 +266,7 @@ export default function App() {
           </nav>
 
           {/* Conteúdo da Sidebar conforme Aba Ativa */}
-          <div className="flex-1 overflow-y-auto hud-scroll p-4 space-y-3">
+          <div className="flex-1 overflow-y-auto hud-scroll p-3 space-y-3">
 {activeView === 'cards' && (
               <CreditCardList
                 cards={cardSummaries}
@@ -238,38 +291,30 @@ export default function App() {
             {/* Visão Geral (filtro padrão) */}
             {activeView === 'overview' && (
               <>
-                <div className="px-1 py-2">
-                  <p className="text-xs text-text-tertiary leading-relaxed">
-                    Visão consolidada de receitas, despesas e saldo do mês.
-                  </p>
-                </div>
-
                 {/* Bancos: divisão das receitas — só na Visão Geral */}
-                <div className="pt-3 mt-3 border-t border-border">
-                  <BankIncomeList
-                    banks={banks}
-                    summaries={bankSummaries}
-                    onManage={() => setActiveView('banks')}
-                  />
-                </div>
+                <BankIncomeList
+                  banks={banks}
+                  summaries={bankSummaries}
+                  onManage={() => setActiveView('banks')}
+                />
               </>
             )}
           </div>
 
           {/* Ações da Sidebar */}
-          <div className="p-4 bg-surface space-y-2">
+          <div className="p-3 bg-surface space-y-2 border-t border-border">
             <button
               onClick={() => setIsModalOpen(true)}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-accent text-white font-semibold text-sm hover:bg-accent/90 active:scale-[0.98] transition-all shadow-lg shadow-accent/20"
+              className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-accent text-white font-semibold text-xs hover:bg-accent/90 active:scale-[0.98] transition-all shadow-md shadow-accent/20"
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
               Registrar Transação
             </button>
             
-            {/* Grade minimalista: ícone + rótulo revelado no hover */}
-            <div className="grid grid-cols-2 gap-2">
+            {/* Grade minimalista: ícone + rótulo compactos */}
+            <div className="grid grid-cols-4 gap-1.5">
               {[
                 {
                   key: 'members',
@@ -305,18 +350,12 @@ export default function App() {
                   onClick={item.onClick}
                   title={item.hint}
                   aria-label={item.hint}
-                  className="group relative flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl bg-surface-muted text-text-tertiary hover:text-accent hover:bg-accent/8 border border-transparent hover:border-accent/20 transition-all duration-200 active:scale-[0.97]"
+                  className="group relative flex flex-col items-center justify-center gap-1 py-2 rounded-lg bg-surface-muted text-text-tertiary hover:text-accent hover:bg-accent/8 border border-transparent hover:border-accent/20 transition-all duration-200 active:scale-[0.97]"
                 >
-                  <svg className="w-[18px] h-[18px] transition-transform duration-200 group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                  <svg className="w-4 h-4 transition-transform duration-200 group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
                     <path d={item.path} />
                   </svg>
-                  <span className="text-[10px] font-medium tracking-wide">{item.label}</span>
-                  <span
-                    role="tooltip"
-                    className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-text-primary px-2 py-1 text-[10px] font-medium text-surface opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 z-20"
-                  >
-                    {item.hint}
-                  </span>
+                  <span className="text-[9px] font-medium tracking-wide">{item.label}</span>
                 </button>
               ))}
             </div>
@@ -325,21 +364,21 @@ export default function App() {
         </aside>
 
         {/* Conteúdo Principal */}
-        <main className="flex-1 h-full overflow-y-auto hud-scroll bg-surface-muted">
+        <main className="flex-1 min-h-0 overflow-y-auto hud-scroll bg-surface-muted">
           {/* Renderização Condicional: Dashboard do Cartão, Despesas Fixas ou Visão Geral */}
           {selectedCardId ? (
-            <div className="max-w-5xl mx-auto px-10 py-8">
+            <div className="max-w-5xl mx-auto px-4 py-6 sm:px-10 sm:py-8">
               <CardDashboard 
                 card={cards.find(c => c.id === selectedCardId)!} 
                 onBack={() => setSelectedCardId(null)} 
               />
             </div>
           ) : activeView === 'fixed' ? (
-            <div className="max-w-5xl mx-auto px-10 py-8">
+            <div className="max-w-5xl mx-auto px-4 py-6 sm:px-10 sm:py-8">
               <FixedExpensesView />
             </div>
           ) : activeView === 'banks' ? (
-            <div className="max-w-5xl mx-auto px-10 py-8">
+            <div className="max-w-5xl mx-auto px-4 py-6 sm:px-10 sm:py-8">
               <button
                 onClick={() => setActiveView('overview')}
                 className="mb-5 flex items-center gap-2 text-sm font-medium text-text-secondary hover:text-accent transition-colors"
@@ -352,7 +391,7 @@ export default function App() {
               <BankOverview />
             </div>
           ) : (
-          <div className="max-w-5xl mx-auto px-10 py-8 space-y-10">
+          <div className="max-w-5xl xl:max-w-7xl mx-auto px-4 py-6 sm:px-10 sm:py-8 space-y-10">
             
             {/* Header da Página */}
             <header className="space-y-1">

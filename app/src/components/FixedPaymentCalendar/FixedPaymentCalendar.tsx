@@ -78,8 +78,8 @@ export function FixedPaymentCalendar() {
   }
 
   return (
-    <div className="px-3 py-2">
-      <div className="flex items-center justify-between mb-2">
+    <div className="px-3 py-1.5">
+      <div className="flex items-center justify-between mb-1.5">
         <span className="text-[10px] font-bold text-text-primary uppercase tracking-wide">
           Pagamentos Fixos
         </span>
@@ -98,7 +98,7 @@ export function FixedPaymentCalendar() {
 
       <div className="grid grid-cols-7 gap-0.5">
         {Array.from({ length: firstDayOffset }).map((_, i) => (
-          <div key={`offset-${i}`} className="aspect-square" />
+          <div key={`offset-${i}`} className="h-5" />
         ))}
 
         {grid.map((day) => {
@@ -115,7 +115,7 @@ export function FixedPaymentCalendar() {
                       .join('\n')}`
                   : `${day.dueDay}/${month + 1}`
               }
-              className={`aspect-square rounded flex flex-col items-center justify-center relative transition-colors ${
+              className={`h-5 rounded flex flex-col items-center justify-center relative transition-colors ${
                 isToday
                   ? 'bg-accent/15 ring-1 ring-accent/50'
                   : hasPayments
@@ -161,30 +161,19 @@ export function FixedPaymentCalendar() {
       </div>
 
       {nextPayment && (
-        <div className="mt-2 pt-2 border-t border-border/60">
-          <div className="flex items-center gap-2">
-            {(() => {
-              const Icon = getCategoryIcon(nextPayment.payments[0]!.category, categoryIcons)
-              return (
-                <div className="w-6 h-6 rounded-full flex items-center justify-center bg-accent/10 text-accent flex-shrink-0">
-                  <Icon className="w-3 h-3" aria-hidden="true" />
-                </div>
-              )
-            })()}
-            <div className="flex-1 min-w-0">
-              <div className="text-[9px] text-text-tertiary truncate">
-                Próximo: {nextPayment.payments[0]!.description}
-              </div>
-              <div className="text-[10px] font-semibold text-text-primary">
-                Dia {nextPayment.dueDay} · {formatBRL(nextPayment.total)}
-              </div>
-            </div>
-            <span className="text-[8px] font-bold text-accent flex-shrink-0">
-              {nextPayment.dueDay === todayDay
-                ? 'HOJE'
-                : `em ${nextPayment.dueDay - todayDay}d`}
-            </span>
+        <div className="mt-1 pt-1 border-t border-border/60 flex items-center gap-1.5">
+          {(() => {
+            const Icon = getCategoryIcon(nextPayment.payments[0]!.category, categoryIcons)
+            return <Icon className="w-3 h-3 text-accent flex-shrink-0" aria-hidden="true" />
+          })()}
+          <div className="flex-1 min-w-0 text-[9px] leading-tight truncate">
+            <span className="text-text-tertiary">Próximo: </span>
+            <span className="font-semibold text-text-primary">{nextPayment.payments[0]!.description}</span>
+            <span className="text-text-tertiary"> · Dia {nextPayment.dueDay} · {formatBRL(nextPayment.total)}</span>
           </div>
+          <span className="text-[8px] font-bold text-accent flex-shrink-0">
+            {nextPayment.dueDay === todayDay ? 'HOJE' : `em ${nextPayment.dueDay - todayDay}d`}
+          </span>
         </div>
       )}
     </div>
