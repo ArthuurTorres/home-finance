@@ -154,8 +154,9 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
     e.preventDefault()
     const amountCents = parseBRL(form.amount)
     if (!form.description.trim() || amountCents <= 0) return
-    // Banco é obrigatório nos dois tipos: é o que liga a transação a uma conta.
-    if (!form.bankId) return
+    // Banco é obrigatório, exceto em despesa fixa: o banco só é escolhido na hora de pagar.
+    const willBeFixed = form.type === 'expense' && form.isRecurring && form.cardId === 'cash'
+    if (!willBeFixed && !form.bankId) return
 
     // Receita não tem cartão: sempre Dinheiro/PIX/Débito.
     // Despesa: usa o selecionado, ou o filtro ativo, ou o primeiro cartão disponível.
@@ -172,7 +173,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
       installments: form.installments,
       category: form.category,
       cardId: resolvedCardId,
-      bankId: form.bankId,
+      bankId: form.bankId || undefined,
       memberId: form.memberId || undefined,
       isPaid: form.isPaid,
       isRecurring: form.isRecurring,
@@ -239,7 +240,9 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
 
   const isIncome = form.type === 'income'
   const amountCents = parseBRL(form.amount)
-  const canSubmit = form.description.trim().length > 0 && amountCents > 0 && form.bankId.length > 0
+  const isFixedExpense = !isIncome && form.isRecurring
+  const canSubmit =
+    form.description.trim().length > 0 && amountCents > 0 && (isFixedExpense || form.bankId.length > 0)
   const installmentValue = form.installments > 1 ? getInstallmentValue(amountCents, form.installments) : 0
   const isCreditCard = form.cardId !== 'cash'
   const showDueDay = !isIncome && (form.installments > 1 || form.isRecurring)
@@ -423,6 +426,11 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
       )}
 
       {/* --- Banco/conta da transação --- */}
+      {isFixedExpense ? (
+        <p className="rounded-xl border border-dashed border-border bg-surface-muted px-4 py-3 text-xs text-text-secondary">
+          Despesa fixa não precisa de banco agora — você escolhe a conta na hora de pagar.
+        </p>
+      ) : (
       <div>
         <label className={labelClass}>
           {isIncome ? 'Onde o valor entrou?' : 'De qual conta saiu?'}
@@ -476,6 +484,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
           </div>
         )}
       </div>
+      )}
 
       {/* --- Campos exclusivos de despesa --- */}
       {!isIncome && (

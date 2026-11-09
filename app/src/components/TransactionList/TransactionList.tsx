@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Virtuoso } from 'react-virtuoso'
 import { useExpenseStore } from '../../store/useExpenseStore'
 import { formatBRL, CARDS, ESSENTIALITY_OPTIONS, getEssentialityMeta } from '../../utils/finance'
 import type { Expense } from '../../utils/finance'
 import { AvatarIcon } from '../AvatarIcon/AvatarIcon'
+import { BankPickerModal } from '../BankPickerModal/BankPickerModal'
 
 export function TransactionList() {
   const expenses = useExpenseStore((s) => s.expenses)
@@ -15,6 +16,9 @@ export function TransactionList() {
   const removeExpense = useExpenseStore((s) => s.removeExpense)
   const setEditingId = useExpenseStore((s) => s.setEditingId)
   const togglePaid = useExpenseStore((s) => s.togglePaid)
+  const updateExpense = useExpenseStore((s) => s.updateExpense)
+  // Despesa sem banco: a conta é escolhida agora, no momento de pagar.
+  const [pendingPayment, setPendingPayment] = useState<Expense | null>(null)
 
   const sorted = useMemo(() => {
     const filtered = expenses.filter((e: Expense) => {
@@ -363,7 +367,10 @@ export function TransactionList() {
                       ✏️
                     </button>
                     <button
-                      onClick={() => togglePaid(expense.id)}
+                      onClick={() => {
+                        if (!isPaid && !expense.bankId) setPendingPayment(expense)
+                        else togglePaid(expense.id)
+                      }}
                       className={`p-1.5 rounded-lg transition-colors ${
                         isPaid
                           ? 'text-amber-500 hover:bg-amber-50'
@@ -387,6 +394,18 @@ export function TransactionList() {
           />
         </div>
       )}
+
+      <BankPickerModal
+        isOpen={pendingPayment !== null}
+        description={pendingPayment?.description ?? ''}
+        amount={pendingPayment?.amount ?? 0}
+        onClose={() => setPendingPayment(null)}
+        onConfirm={(bankId) => {
+          if (!pendingPayment) return
+          updateExpense(pendingPayment.id, { bankId, isPaid: true })
+          setPendingPayment(null)
+        }}
+      />
     </div>
   )
 }
