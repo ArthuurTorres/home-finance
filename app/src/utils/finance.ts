@@ -931,6 +931,30 @@ export function getActiveInstallments(expenses: Expense[]): InstallmentSummary[]
     .sort((a, b) => b.remainingCents - a.remainingCents)
 }
 
+export interface CardInstallmentGroup {
+  cardId: string
+  items: InstallmentSummary[]
+  remainingCents: number
+  monthlyCents: number
+}
+
+/** Parcelamentos ativos agrupados por cartão, do maior saldo devedor para o menor. */
+export function getInstallmentsByCard(expenses: Expense[]): CardInstallmentGroup[] {
+  const groups = new Map<string, CardInstallmentGroup>()
+
+  for (const item of getActiveInstallments(expenses)) {
+    const cardId = item.expense.cardId
+    const group =
+      groups.get(cardId) ?? { cardId, items: [], remainingCents: 0, monthlyCents: 0 }
+    group.items.push(item)
+    group.remainingCents += item.remainingCents
+    group.monthlyCents += item.perInstallment
+    groups.set(cardId, group)
+  }
+
+  return [...groups.values()].sort((a, b) => b.remainingCents - a.remainingCents)
+}
+
 // --- Importação de extrato (OFX / CSV) ---
 
 export interface ImportRow {

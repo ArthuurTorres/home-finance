@@ -21,6 +21,7 @@ import {
 getDailySummary,
 	getDailyDetail,
 	getActiveInstallments,
+	getInstallmentsByCard,
 	getEssentialityMeta,
 	getBalanceSeverity,
 	getBankSummary,
@@ -359,6 +360,24 @@ describe('getActiveInstallments', () => {
 		const rows = getActiveInstallments(expenses)
 		expect(rows).toHaveLength(1)
 		expect(rows[0]).toMatchObject({ paid: 2, total: 12, remaining: 10, remainingCents: 100000 })
+	})
+})
+
+describe('getInstallmentsByCard', () => {
+	it('agrupa por cartão e soma o saldo e a parcela mensal', () => {
+		const expenses = [
+			{ id: '550e8400-e29b-41d4-a716-446655440140', description: 'TV', date: '2026-01-01', amount: 120000, dueDay: 10, installments: 12, paidInstallments: 2, isPaid: false, isRecurring: false, category: 'Lazer', cardId: 'nubank', type: 'expense' as const },
+			{ id: '550e8400-e29b-41d4-a716-446655440141', description: 'Sofá', date: '2026-01-01', amount: 60000, dueDay: 10, installments: 6, paidInstallments: 0, isPaid: false, isRecurring: false, category: 'Moradia', cardId: 'nubank', type: 'expense' as const },
+			{ id: '550e8400-e29b-41d4-a716-446655440142', description: 'Notebook', date: '2026-01-01', amount: 120000, dueDay: 10, installments: 4, paidInstallments: 1, isPaid: false, isRecurring: false, category: 'Outros', cardId: 'itau', type: 'expense' as const },
+			{ id: '550e8400-e29b-41d4-a716-446655440143', description: 'Quitado', date: '2026-01-01', amount: 10000, dueDay: 10, installments: 2, paidInstallments: 2, isPaid: true, isRecurring: false, category: 'Lazer', cardId: 'itau', type: 'expense' as const },
+		]
+		const groups = getInstallmentsByCard(expenses)
+		expect(groups).toHaveLength(2)
+		expect(groups[0].cardId).toBe('nubank')
+		expect(groups[0].items).toHaveLength(2)
+		expect(groups[0].remainingCents).toBe(160000)
+		expect(groups[0].monthlyCents).toBe(20000)
+		expect(groups[1]).toMatchObject({ cardId: 'itau', remainingCents: 90000, monthlyCents: 30000 })
 	})
 })
 
