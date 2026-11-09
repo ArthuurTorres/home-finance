@@ -44,7 +44,10 @@ export function SavingsGoals() {
         <h3 className="text-lg font-display text-nude-800">Metas de Poupança</h3>
         {!isAdding && (
           <button
-            onClick={() => setIsAdding(true)}
+            onClick={(e) => {
+              e.stopPropagation()
+              setIsAdding(true)
+            }}
             className="text-xs font-bold text-terracotta-600 hover:text-terracotta-700 transition-colors"
           >
             + Nova Meta

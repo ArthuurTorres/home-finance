@@ -6,7 +6,10 @@ import {
 	getInstallmentAt,
 	validateExpenses,
 	getTotalDebt,
+	getCurrentMonthTotal,
+	generateProjections,
 	getRecurringProjections,
+	getMonthlySummary,
 	getCategorySpending,
 	exportToJSON,
 	importFromJSON,
@@ -19,6 +22,10 @@ getDailySummary,
 	getDailyDetail,
 	getActiveInstallments,
 	getEssentialityMeta,
+	getBalanceSeverity,
+	getBankSummary,
+	BALANCE_WARNING_RATIO,
+	type Bank,
 	type Expense,
 } from './finance'
 
@@ -82,6 +89,75 @@ describe('getTotalDebt', () => {
 			{ id: '550e8400-e29b-41d4-a716-446655440002', description: 'B', date: '2026-01-01T00:00:00Z', amount: 10000, dueDay: 10, installments: 1, paidInstallments: 0, isPaid: true, isRecurring: false, category: 'Lazer', cardId: 'cash', type: 'expense' },
 		]
 		expect(getTotalDebt(expenses)).toBe(20000)
+	})
+
+	it('ignora receitas parceladas (receita não é dívida)', () => {
+		const expenses: Expense[] = [
+			{ id: '550e8400-e29b-41d4-a716-446655440003', description: 'Freela', date: '2026-01-01T00:00:00Z', amount: 60000, dueDay: 10, installments: 3, paidInstallments: 0, isPaid: false, isRecurring: false, category: 'Outros', cardId: 'nubank', type: 'income' },
+		]
+		expect(getTotalDebt(expenses)).toBe(0)
+	})
+})
+
+const NOW_MONTH = new Date()
+const thisMonthDate = `${NOW_MONTH.getFullYear()}-${String(NOW_MONTH.getMonth() + 1).padStart(2, '0')}-10`
+
+const recurringIncome: Expense = {
+	id: '550e8400-e29b-41d4-a716-446655440030',
+	description: 'Salário',
+	date: `${NOW_MONTH.getFullYear() - 1}-01-05`,
+	amount: 500000,
+	dueDay: 5,
+	installments: 1,
+	paidInstallments: 0,
+	isPaid: false,
+	isRecurring: true,
+	category: 'Outros',
+	cardId: 'nubank',
+	type: 'income',
+}
+
+const recurringExpense: Expense = {
+	id: '550e8400-e29b-41d4-a716-446655440031',
+	description: 'Aluguel',
+	date: `${NOW_MONTH.getFullYear() - 1}-01-10`,
+	amount: 150000,
+	dueDay: 10,
+	installments: 1,
+	paidInstallments: 0,
+	isPaid: false,
+	isRecurring: true,
+	category: 'Moradia',
+	cardId: 'nubank',
+	type: 'expense',
+}
+
+describe('getCurrentMonthTotal', () => {
+	it('soma só despesas e ignora receita recorrente', () => {
+		expect(getCurrentMonthTotal([recurringExpense, recurringIncome])).toBe(150000)
+	})
+})
+
+describe('generateProjections', () => {
+	it('não conta receita recorrente como conta do mês', () => {
+		const projections = generateProjections([recurringExpense, recurringIncome], 2)
+		expect(projections[1].total).toBe(150000)
+		expect(projections[1].income).toBe(500000)
+	})
+})
+
+describe('getMonthlySummary', () => {
+	it('separa receita de despesa no mesmo mês', () => {
+		const summary = getMonthlySummary(
+			[
+				{ ...recurringExpense, date: thisMonthDate, isRecurring: false },
+				{ ...recurringIncome, date: thisMonthDate, isRecurring: false },
+			],
+			thisMonthDate.slice(0, 7)
+		)
+		expect(summary.income).toBe(500000)
+		expect(summary.expense).toBe(150000)
+		expect(summary.balance).toBe(350000)
 	})
 })
 
@@ -251,10 +327,10 @@ describe('getDailyDetail', () => {
 		const detail = getDailyDetail(expenses, '2026-01')
 		expect(detail[5]).toEqual({
 			fixed: [
-				{ description: 'Aluguel', amount: 150000 },
-				{ description: 'Internet', amount: 12000 },
+				{ description: 'Aluguel', amount: 150000, category: 'Moradia' },
+				{ description: 'Internet', amount: 12000, category: 'Moradia' },
 			],
-			variable: [{ description: 'Mercado', amount: 32000 }],
+			variable: [{ description: 'Mercado', amount: 32000, category: 'Alimentação' }],
 		})
 	})
 })
@@ -283,6 +359,133 @@ describe('getActiveInstallments', () => {
 		const rows = getActiveInstallments(expenses)
 		expect(rows).toHaveLength(1)
 		expect(rows[0]).toMatchObject({ paid: 2, total: 12, remaining: 10, remainingCents: 100000 })
+	})
+})
+
+describe('getBalanceSeverity', () => {
+	it('marca negativo como danger', () => {
+		expect(getBalanceSeverity(-1, 500000)).toBe('danger')
+	})
+
+	it('marca positivo apertado como warning', () => {
+		// 10% da receita fica abaixo do limite de 15%
+		expect(getBalanceSeverity(50000, 500000)).toBe('warning')
+	})
+
+	it('marca positivo com folga como positive', () => {
+		expect(getBalanceSeverity(500000 * BALANCE_WARNING_RATIO, 500000)).toBe('positive')
+	})
+
+	it('sem receita no mês, saldo zero é positive e negativo é danger', () => {
+		expect(getBalanceSeverity(0, 0)).toBe('positive')
+		expect(getBalanceSeverity(-100, 0)).toBe('danger')
+	})
+})
+
+describe('getBankSummary', () => {
+	const banks: Bank[] = [
+		{ id: 'nubank', name: 'Nubank', color: '#820ad1' },
+		{ id: 'itau', name: 'Itaú', color: '#ec7000' },
+	]
+	const base = {
+		dueDay: 5,
+		installments: 1,
+		paidInstallments: 0,
+		isPaid: true,
+		isRecurring: false,
+		category: 'Salário' as const,
+		cardId: 'cash' as const,
+		type: 'income' as const,
+	}
+	const incomes: Expense[] = [
+		{ ...base, id: '550e8400-e29b-41d4-a716-446655440201', description: 'Salário jan', date: '2026-01-05T00:00:00Z', amount: 800000, bankId: 'nubank' },
+		{ ...base, id: '550e8400-e29b-41d4-a716-446655440202', description: 'Freela jan', date: '2026-01-20T00:00:00Z', amount: 200000, bankId: 'itau' },
+		{ ...base, id: '550e8400-e29b-41d4-a716-446655440203', description: 'Salário fev', date: '2026-02-05T00:00:00Z', amount: 800000, bankId: 'nubank' },
+		// despesa no mesmo mês e banco: não pode entrar na conta
+		{ ...base, id: '550e8400-e29b-41d4-a716-446655440204', description: 'Aluguel jan', date: '2026-01-10T00:00:00Z', amount: 500000, type: 'expense', category: 'Moradia', bankId: 'nubank' },
+	]
+
+	it('filtra pelo mês específico e ignora despesas', () => {
+		const result = getBankSummary(banks, incomes, '2026-01')
+		expect(result.map((r) => [r.bank.name, r.total, r.transactions])).toEqual([
+			['Nubank', 800000, 1],
+			['Itaú', 200000, 1],
+		])
+	})
+
+	it('com "all" soma todos os meses', () => {
+		const result = getBankSummary(banks, incomes, 'all')
+		expect(result[0].total).toBe(1600000)
+		expect(result[0].transactions).toBe(2)
+	})
+
+	it('calcula o percentual e ordena do maior para o menor', () => {
+		const result = getBankSummary(banks, incomes, '2026-01')
+		expect(result[0].percentage).toBeCloseTo(80)
+		expect(result[1].percentage).toBeCloseTo(20)
+	})
+
+	it('agrupa receitas sem banco em "Sem banco"', () => {
+		const semBanco: Expense[] = [
+			...incomes,
+			{ ...base, id: '550e8400-e29b-41d4-a716-446655440205', description: 'Pix avulso', date: '2026-01-15T00:00:00Z', amount: 100000 },
+		]
+		const result = getBankSummary(banks, semBanco, '2026-01')
+		const slot = result.find((r) => r.bank.id === 'no-bank')
+		expect(slot?.total).toBe(100000)
+		expect(slot?.transactions).toBe(1)
+	})
+
+	it('sem receitas no período, todo percentual é zero', () => {
+		const result = getBankSummary(banks, incomes, '2026-05')
+		expect(result.every((r) => r.total === 0 && r.percentage === 0)).toBe(true)
+	})
+
+	it('saldo desconta gastos pagos direto da conta (Pix/débito)', () => {
+		const result = getBankSummary(banks, incomes, '2026-01')
+		const nubank = result.find((r) => r.bank.id === 'nubank')
+		expect(nubank?.balance).toBe(300000)
+		expect(nubank?.total).toBe(800000)
+	})
+
+	it('saldo fica negativo quando os débitos passam das entradas', () => {
+		const gasto: Expense = {
+			...base,
+			id: '550e8400-e29b-41d4-a716-446655440206',
+			description: 'Pix grande',
+			date: '2026-01-15T00:00:00Z',
+			amount: 900000,
+			type: 'expense',
+			category: 'Moradia',
+			bankId: 'itau',
+		}
+		const result = getBankSummary(banks, [...incomes, gasto], '2026-01')
+		const itau = result.find((r) => r.bank.id === 'itau')
+		expect(itau?.total).toBe(200000)
+		expect(itau?.balance).toBe(-700000)
+	})
+
+	it('gasto no cartão de crédito não debita o saldo do banco', () => {
+		const noCartao: Expense = {
+			...base,
+			id: '550e8400-e29b-41d4-a716-446655440207',
+			description: 'Mercado no cartão',
+			date: '2026-01-12T00:00:00Z',
+			amount: 400000,
+			type: 'expense',
+			category: 'Alimentação',
+			cardId: 'nubank-card',
+			bankId: 'nubank',
+		}
+		const result = getBankSummary(banks, [...incomes, noCartao], '2026-01')
+		const nubank = result.find((r) => r.bank.id === 'nubank')
+		expect(nubank?.balance).toBe(300000)
+	})
+
+	it('cartão não é aceito como cardId nesta checagem? não: só "cash" debita', () => {
+		const result = getBankSummary(banks, incomes, '2026-02')
+		const nubank = result.find((r) => r.bank.id === 'nubank')
+		expect(nubank?.balance).toBe(800000)
 	})
 })
 

@@ -3,6 +3,9 @@ import type { ReactNode } from 'react'
 import { DASHBOARD_BLOCK_LABELS } from '../../utils/finance'
 import type { DashboardBlockId } from '../../utils/finance'
 
+/** Elementos que respondem por conta própria dentro de um bloco */
+const INTERACTIVE = 'input, textarea, select, button, a, label, [role="button"], [contenteditable="true"]'
+
 interface DashboardStackProps {
   order: string[]
   onReorder: (order: string[]) => void
@@ -94,7 +97,13 @@ export function DashboardStack({ order, onReorder, onBlockClick, blocks }: Dashb
             </svg>
           </button>
           <div
-            onClick={() => onBlockClick?.(id)}
+            onClick={(e) => {
+              if (!onBlockClick) return
+              // Clique em controle interno (input, botão de meta, categoria) age no
+              // próprio bloco; só a área livre do card abre a visão detalhada.
+              if ((e.target as HTMLElement).closest(INTERACTIVE)) return
+              onBlockClick(id)
+            }}
             className={`transition-all duration-200 ${onBlockClick ? 'cursor-pointer hover:scale-[1.01] hover:shadow-lg hover:border-accent/30 rounded-xl' : ''}`}
           >
             {blocks[id]}

@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useExpenseStore } from '../../store/useExpenseStore'
 import { formatBRL, getDailyDetail, getMonthKey } from '../../utils/finance'
+import { getCategoryIcon } from '../../utils/categoryIcons'
 import type { DailyDetailItem } from '../../utils/finance'
 
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
 
 /** Quantos itens cabem na célula antes de resumir em "+N contas" */
-const ITEMS_IN_CELL = 2
+const ITEMS_IN_CELL = 3
 
 function shiftMonth(key: string, delta: number): string {
   const [year, month] = key.split('-').map(Number)
@@ -22,15 +23,6 @@ function monthLabel(key: string): string {
       year: 'numeric',
     })
     .replace(/^\w/, (c) => c.toUpperCase())
-}
-
-/** Valor compacto para caber na célula: 1,2k · 350 */
-function shortBRL(cents: number): string {
-  const value = cents / 100
-  if (value >= 1000) {
-    return `${(value / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}k`
-  }
-  return value.toLocaleString('pt-BR', { maximumFractionDigits: 0 })
 }
 
 function sumItems(items: DailyDetailItem[]): number {
@@ -52,6 +44,26 @@ const KIND_STYLE = {
   fixed: { short: 'F', label: 'Fixo', bg: 'rgba(212, 96, 58, 0.2)', color: '#b84a28' },
   variable: { short: 'V', label: 'Variável', bg: 'rgba(5, 150, 105, 0.18)', color: '#047857' },
 } as const
+
+function CategoryMark({
+  category,
+  customIcons,
+  onDark = false,
+}: {
+  category: string
+  customIcons: Record<string, string>
+  onDark?: boolean
+}) {
+  const Icon = getCategoryIcon(category, customIcons)
+  return (
+    <Icon
+      aria-hidden="true"
+      strokeWidth={2}
+      className="w-2.5 h-2.5 shrink-0"
+      style={{ color: onDark ? 'rgba(255,255,255,0.85)' : '#b84a28' }}
+    />
+  )
+}
 
 function KindBadge({
   kind,
@@ -83,11 +95,13 @@ function DayDetailModal({
   day,
   month,
   rows,
+  customIcons,
   onClose,
 }: {
   day: number
   month: string
   rows: DayRow[]
+  customIcons: Record<string, string>
   onClose: () => void
 }) {
   useEffect(() => {
@@ -160,6 +174,7 @@ function DayDetailModal({
                   >
                     <span className="flex items-center gap-1.5 min-w-0">
                       <KindBadge kind={item.kind} />
+                      <CategoryMark category={item.category} customIcons={customIcons} />
                       <span className="text-sm text-text-primary truncate">{item.description}</span>
                     </span>
                     <span className="text-sm font-semibold text-text-primary whitespace-nowrap">
@@ -185,6 +200,7 @@ function DayDetailModal({
                   >
                     <span className="flex items-center gap-1.5 min-w-0">
                       <KindBadge kind={item.kind} />
+                      <CategoryMark category={item.category} customIcons={customIcons} />
                       <span className="text-sm text-text-primary truncate">{item.description}</span>
                     </span>
                     <span className="text-sm font-semibold text-text-primary whitespace-nowrap">
@@ -212,6 +228,7 @@ function DayDetailModal({
 
 export function FinancialCalendar() {
   const expenses = useExpenseStore((s) => s.expenses)
+  const customIcons = useExpenseStore((s) => s.categoryIcons)
   const [month, setMonth] = useState(() => getMonthKey(new Date()))
   const [openDay, setOpenDay] = useState<number | null>(null)
 
@@ -331,10 +348,14 @@ export function FinancialCalendar() {
                   className="text-[9px] leading-tight flex items-center justify-between gap-0.5 min-w-0"
                 >
                   <span className="flex items-center gap-0.5 min-w-0">
-                    <KindBadge kind={item.kind} size="sm" onDark={intensity > 0.55} />
+                    <CategoryMark
+                      category={item.category}
+                      customIcons={customIcons}
+                      onDark={intensity > 0.55}
+                    />
                     <span className="hidden @min-[64px]:block truncate">{item.description}</span>
                   </span>
-                  <span className="font-semibold whitespace-nowrap">{shortBRL(item.amount)}</span>
+                  <span className="font-semibold whitespace-nowrap">{formatBRL(item.amount)}</span>
                 </span>
               ))}
               {hidden > 0 && (
@@ -367,6 +388,7 @@ export function FinancialCalendar() {
           day={openDay}
           month={month}
           rows={openRows}
+          customIcons={customIcons}
           onClose={() => setOpenDay(null)}
         />
       )}

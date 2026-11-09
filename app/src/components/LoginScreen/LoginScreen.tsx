@@ -23,45 +23,46 @@ export function LoginScreen() {
   const doorRef = useRef<SVGRectElement>(null);
   const litRef = useRef<SVGRectElement>(null);
   const smkRef = useRef<SVGGElement>(null);
+  const smkInnerRef = useRef<SVGGElement>(null);
 
-  // Animação narrativa em loop contínuo: carro chega → família entra → reset suave
+  // Animação narrativa em loop contínuo: carro chega → família entra → reinicia
   useEffect(() => {
     const c = gsap.context(() => {
-      const tl = gsap.timeline({ repeat: -1, repeatDelay: 1.5, defaults: { ease: 'power2.inOut' } });
+      // Entrada da cena: uma única vez, fora do loop
+      gsap.from(svgRef.current, { scale: 0.85, opacity: 0, duration: 0.9, ease: 'power3.out' });
 
-      // Entrada inicial da cena
-      tl.from(svgRef.current, { scale: 0.8, opacity: 0, duration: 1, ease: 'power3.out' });
+      const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.15, defaults: { ease: 'power2.inOut' } });
 
-      // Carro entra de longe e para distante da casa
-      // Estrada totalmente invisível no início; carro desenha ao avançar
-      tl.set(roadRef.current, { strokeDashoffset: 55, attr: { 'stroke-dashoffset': 55 } })
-        .fromTo(carRef.current, { x: -120 }, { x: -25, duration: 3, ease: 'power1.inOut' }, '+=0.2')
-        .to(roadRef.current, { strokeDashoffset: 0, duration: 3, ease: 'none' }, '<');
+      // Estado inicial de cada ciclo: carro bem fora do viewBox (que começa em -110)
+      tl.set(carRef.current, { x: -175, opacity: 1 })
+        .set(roadRef.current, { opacity: 1, strokeDashoffset: 150, attr: { 'stroke-dashoffset': 150 } })
+        .set(doorRef.current, { opacity: 1, attr: { width: 16 } })
+        .set(litRef.current, { opacity: 0 })
+        .set(famRef.current, { opacity: 0, x: -25, y: 78, scale: 1 })
+        .set(smkRef.current, { opacity: 0.3, y: 0 });
 
-      // Família sai do carro e caminha visivelmente até a porta
-      tl.set(famRef.current, { opacity: 1, x: -25, y: 78, scale: 1 })
+      // Carro entra de longe; a estrada é desenhada no mesmo ritmo e apaga conforme ele se aproxima
+      tl.to(carRef.current, { x: -25, duration: 3, ease: 'power1.inOut' }, '+=0.3')
+        .to(roadRef.current, { strokeDashoffset: 0, duration: 3, ease: 'power1.inOut' }, '<')
+        .to(roadRef.current, { opacity: 0, duration: 1.8, ease: 'power2.in' }, '<1.1');
+
+      // Família sai do carro e caminha até a porta
+      tl.to(famRef.current, { opacity: 1, duration: 0.3 })
         .to(famRef.current, { x: 42, duration: 2.2, ease: 'power1.inOut' })
-        // Porta abre encolhendo para a esquerda (simula dobradiça sem transform-origin problemático)
         .to(doorRef.current, { attr: { width: 1 }, duration: 0.4, ease: 'power2.out' })
         .to(litRef.current, { opacity: 0.9, duration: 0.3 }, '-=0.2')
-        // Família entra e some
         .to(famRef.current, { x: 50, scale: 0.1, opacity: 0, duration: 0.5, ease: 'power1.in' })
-        // Porta fecha
-        .to(doorRef.current, { attr: { width: 16 }, duration: 0.3, ease: 'power2.in' });
+        .to(doorRef.current, { attr: { width: 16 }, duration: 0.3, ease: 'power2.in' })
+        .to(litRef.current, { opacity: 0, duration: 0.2 }, '<')
+        .to(smkRef.current, { opacity: 0.8, y: -12, duration: 1.2, ease: 'sine.out' });
 
-      // Fumaça sobe após família entrar
-      tl.to(smkRef.current, { opacity: 0.8, y: -12, duration: 1.2, ease: 'sine.out' });
+      // Fim do ciclo: o carro some (o rastro já apagou na chegada), sem pausa vazia antes de recomeçar
+      tl.to(carRef.current, { opacity: 0, duration: 0.5, ease: 'sine.in' }, '+=0.4')
+        .to(smkRef.current, { opacity: 0.3, y: 0, duration: 0.5, ease: 'sine.inOut' }, '<');
 
-      // Reset: tudo volta ao estado inicial instantaneamente (sem rastro residual)
-      tl.to(smkRef.current, { opacity: 0.3, y: 0, duration: 0.6 })
-        .set([litRef.current, doorRef.current], { opacity: 0, scaleX: 1 })
-        .set(famRef.current, { opacity: 0, x: -25, scale: 1 })
-        .set(carRef.current, { x: -120 })
-        .set(roadRef.current, { strokeDashoffset: 75, attr: { 'stroke-dashoffset': 75 } });
-
-      // Idle: fumaça flutua continuamente durante todo o loop
-      gsap.to(smkRef.current, {
-        y: '-=3',
+      // Idle: fumaça flutua continuamente (grupo interno, sem brigar com a timeline)
+      gsap.to(smkInnerRef.current, {
+        y: -3,
         duration: 2,
         ease: 'sine.inOut',
         yoyo: true,
@@ -175,9 +176,11 @@ export function LoginScreen() {
 
           {/* Fumaça */}
           <g ref={smkRef} opacity="0.3">
-            <circle cx="65" cy="27" r="3" fill="#94a3b8" />
-            <circle cx="68" cy="19" r="4" fill="#94a3b8" />
-            <circle cx="64" cy="11" r="5" fill="#94a3b8" />
+            <g ref={smkInnerRef}>
+              <circle cx="65" cy="27" r="3" fill="#94a3b8" />
+              <circle cx="68" cy="19" r="4" fill="#94a3b8" />
+              <circle cx="64" cy="11" r="5" fill="#94a3b8" />
+            </g>
           </g>
 
           {/* Janelas */}
@@ -197,17 +200,17 @@ export function LoginScreen() {
           {/* Estrada */}
           <path
             ref={roadRef}
-            d="M-100 97L-25 97"
+            d="M-175 97L-25 97"
             stroke="#d4c4b0"
             strokeWidth="3"
             strokeLinecap="round"
             fill="none"
-            strokeDasharray="75"
-            strokeDashoffset="75"
+            strokeDasharray="150"
+            strokeDashoffset="150"
           />
 
           {/* Carro - começa fora da cena à esquerda */}
-          <g ref={carRef} transform="translate(-120, 0)">
+          <g ref={carRef} transform="translate(-175, 0)">
             <rect x="-13" y="84" width="26" height="11" rx="3" fill="#c4704b" />
             <rect x="-9" y="78" width="18" height="8" rx="2" fill="#e8a87c" />
             <circle cx="-7" cy="96" r="3.5" fill="#475569" />

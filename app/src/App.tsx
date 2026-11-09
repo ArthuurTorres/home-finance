@@ -14,6 +14,7 @@ import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary'
 import { TransactionModal } from './components/TransactionModal/TransactionModal'
 import { CategoryModal } from './components/CategoryModal/CategoryModal'
 import { CardManagerModal } from './components/CardManagerModal/CardManagerModal'
+import { BankManagerModal } from './components/BankManagerModal/BankManagerModal'
 import { MemberManager } from './components/MemberManager/MemberManager'
 import { MemberBalance } from './components/MemberBalance/MemberBalance'
 import { CardDashboard } from './components/CardDashboard/CardDashboard'
@@ -23,7 +24,11 @@ import { FinancialCalendar } from './components/FinancialCalendar/FinancialCalen
 import { InstallmentMap } from './components/InstallmentMap/InstallmentMap'
 import { ImportModal } from './components/ImportModal/ImportModal'
 import { DashboardStack } from './components/DashboardStack/DashboardStack'
-import { formatBRL, type DashboardBlockId } from './utils/finance'
+import { BankOverview } from './components/BankOverview/BankOverview'
+import { BankIncomeList } from './components/BankIncomeList/BankIncomeList'
+import { FixedPaymentCalendar } from './components/FixedPaymentCalendar/FixedPaymentCalendar'
+import { CreditCardList } from './components/CreditCardList/CreditCardList'
+import { getBankSummary, type DashboardBlockId } from './utils/finance'
 
 export default function App() {
   const { user, loading, signOut } = useAuth()
@@ -43,8 +48,9 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
   const [isCardManagerOpen, setIsCardManagerOpen] = useState(false)
+  const [isBankManagerOpen, setIsBankManagerOpen] = useState(false)
   const [isMemberManagerOpen, setIsMemberManagerOpen] = useState(false)
-  const [activeView, setActiveView] = useState<'overview' | 'fixed' | 'cards'>('overview')
+  const [activeView, setActiveView] = useState<'overview' | 'fixed' | 'cards' | 'banks'>('overview')
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
   const [focusedBlock, setFocusedBlock] = useState<DashboardBlockId | null>(null)
 
@@ -52,6 +58,7 @@ export default function App() {
   const filters = useExpenseStore((s) => s.filters)
   const setFilter = useExpenseStore((s) => s.setFilter)
   const cards = useExpenseStore((s) => s.cards)
+  const banks = useExpenseStore((s) => s.banks)
   const dashboardOrder = useExpenseStore((s) => s.dashboardOrder)
   const setDashboardOrder = useExpenseStore((s) => s.setDashboardOrder)
 
@@ -77,6 +84,12 @@ export default function App() {
       }
     })
   }, [expenses, filters.month, cards])
+
+  // Divisão das receitas do mês por banco
+  const bankSummaries = useMemo(
+    () => getBankSummary(banks, expenses, filters.month || 'all'),
+    [banks, expenses, filters.month]
+  )
 
   return (
     <ErrorBoundary>
@@ -201,96 +214,50 @@ export default function App() {
 
           {/* Conteúdo da Sidebar conforme Aba Ativa */}
           <div className="flex-1 overflow-y-auto hud-scroll p-4 space-y-3">
-            {activeView === 'cards' && (
-              <>
-                <div className="flex items-center justify-between mb-2 px-1">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
-                    Meus Cartões
-                  </span>
-              <button 
-                onClick={() => setFilter('cardId', 'all')}
-                className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
-                  filters.cardId === 'all' 
-                    ? 'bg-accent/10 text-accent font-medium' 
-                    : 'text-text-tertiary hover:text-text-secondary'
-                }`}
-              >
-                Ver Todos
-              </button>
-            </div>
-
-            {cardSummaries.map(card => {
-              const isActive = filters.cardId === card.id
-              return (
-                <button
-                  key={card.id}
-                  onClick={() => setSelectedCardId(isActive && selectedCardId === card.id ? null : card.id)}
-                  className={`w-full group relative p-3 rounded-xl border transition-all duration-200 text-left ${
-                    isActive 
-                      ? 'border-accent bg-accent/5 shadow-sm ring-1 ring-accent/20' 
-                      : 'border-border bg-surface-muted/30 hover:border-text-tertiary/30 hover:bg-surface-muted'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2.5">
-                      {/* Miniatura do Cartão */}
-                      <div 
-                        className="w-8 h-5 rounded shadow-sm flex items-center justify-center"
-                        style={{ background: card.color }}
-                      >
-                        <div className="w-4 h-3 bg-white/20 rounded-[1px]" />
-                      </div>
-                      <span className={`text-sm font-medium ${isActive ? 'text-text-primary' : 'text-text-secondary group-hover:text-text-primary'}`}>
-                        {card.name}
-                      </span>
-                    </div>
-                    {isActive && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-                    )}
-                  </div>
-
-                  {/* Métricas do Cartão */}
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 pl-[42px]">
-                    <div>
-                      <p className="text-[10px] text-text-tertiary uppercase tracking-wide">Gasto no Mês</p>
-                      <p className="text-sm font-semibold tabular-nums text-text-primary">
-                        {formatBRL(card.totalSpent)}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] text-text-tertiary uppercase tracking-wide">Fixas</p>
-                      <p className="text-sm font-medium tabular-nums text-text-secondary">
-                        {card.fixedCount} <span className="text-[10px] text-text-tertiary font-normal">/{card.transactionCount}</span>
-                      </p>
-                    </div>
-                  </div>
-</button>
-              )
-            })}
-              </>
+{activeView === 'cards' && (
+              <CreditCardList
+                cards={cardSummaries}
+                activeCardId={selectedCardId}
+                onSelect={(id) => {
+                  setSelectedCardId(id)
+                  setFilter('cardId', id ?? 'all')
+                }}
+                onShowAll={() => {
+                  setSelectedCardId(null)
+                  setFilter('cardId', 'all')
+                }}
+              />
             )}
+
 
             {/* Visão de Despesas Fixas */}
             {activeView === 'fixed' && (
-              <div className="px-1 py-2">
-                <p className="text-xs text-text-tertiary leading-relaxed">
-                  Visualize todas as suas despesas recorrentes no painel principal.
-                </p>
-              </div>
+              <FixedPaymentCalendar />
             )}
 
             {/* Visão Geral (filtro padrão) */}
             {activeView === 'overview' && (
-              <div className="px-1 py-2">
-                <p className="text-xs text-text-tertiary leading-relaxed">
-                  Visão consolidada de receitas, despesas e saldo do mês.
-                </p>
-              </div>
+              <>
+                <div className="px-1 py-2">
+                  <p className="text-xs text-text-tertiary leading-relaxed">
+                    Visão consolidada de receitas, despesas e saldo do mês.
+                  </p>
+                </div>
+
+                {/* Bancos: divisão das receitas — só na Visão Geral */}
+                <div className="pt-3 mt-3 border-t border-border">
+                  <BankIncomeList
+                    banks={banks}
+                    summaries={bankSummaries}
+                    onManage={() => setActiveView('banks')}
+                  />
+                </div>
+              </>
             )}
           </div>
 
           {/* Ações da Sidebar */}
-          <div className="p-4 border-t border-border bg-surface space-y-2">
+          <div className="p-4 bg-surface space-y-2">
             <button
               onClick={() => setIsModalOpen(true)}
               className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-accent text-white font-semibold text-sm hover:bg-accent/90 active:scale-[0.98] transition-all shadow-lg shadow-accent/20"
@@ -301,36 +268,58 @@ export default function App() {
               Registrar Transação
             </button>
             
-            <button
-              onClick={() => setIsMemberManagerOpen(true)}
-              className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-surface-muted text-text-secondary text-sm font-medium hover:text-text-primary hover:bg-border transition-all"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-              Gerenciar Membros
-            </button>
-            
-            <button
-              onClick={() => setIsCardManagerOpen(true)}
-              className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-surface-muted text-text-secondary text-sm font-medium hover:text-text-primary hover:bg-border transition-all"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-                <line x1="1" y1="10" x2="23" y2="10" />
-              </svg>
-              Gerenciar Cartões
-            </button>
-            
-            <button
-              onClick={() => setIsCategoryModalOpen(true)}
-              className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-surface-muted text-text-secondary text-sm font-medium hover:text-text-primary hover:bg-border transition-all"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-              </svg>
-              Gerenciar Categorias
-            </button>
+            {/* Grade minimalista: ícone + rótulo revelado no hover */}
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                {
+                  key: 'members',
+                  label: 'Membros',
+                  hint: 'Gerenciar membros da casa',
+                  onClick: () => setIsMemberManagerOpen(true),
+                  path: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z',
+                },
+                {
+                  key: 'cards',
+                  label: 'Cartões',
+                  hint: 'Gerenciar cartões de crédito',
+                  onClick: () => setIsCardManagerOpen(true),
+                  path: 'M2 9h20M4 5h16a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V7a2 2 0 012-2z',
+                },
+                {
+                  key: 'banks',
+                  label: 'Bancos',
+                  hint: 'Gerenciar contas e bancos',
+                  onClick: () => setIsBankManagerOpen(true),
+                  path: 'M3 21h18M4 10h16M5 10V21M19 10V21M9 10V21M15 10V21M12 3L3 8h18L12 3z',
+                },
+                {
+                  key: 'categories',
+                  label: 'Categorias',
+                  hint: 'Gerenciar categorias e ícones',
+                  onClick: () => setIsCategoryModalOpen(true),
+                  path: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z',
+                },
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  onClick={item.onClick}
+                  title={item.hint}
+                  aria-label={item.hint}
+                  className="group relative flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl bg-surface-muted text-text-tertiary hover:text-accent hover:bg-accent/8 border border-transparent hover:border-accent/20 transition-all duration-200 active:scale-[0.97]"
+                >
+                  <svg className="w-[18px] h-[18px] transition-transform duration-200 group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                    <path d={item.path} />
+                  </svg>
+                  <span className="text-[10px] font-medium tracking-wide">{item.label}</span>
+                  <span
+                    role="tooltip"
+                    className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-text-primary px-2 py-1 text-[10px] font-medium text-surface opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 z-20"
+                  >
+                    {item.hint}
+                  </span>
+                </button>
+              ))}
+            </div>
 
           </div>
         </aside>
@@ -349,20 +338,29 @@ export default function App() {
             <div className="max-w-5xl mx-auto px-10 py-8">
               <FixedExpensesView />
             </div>
+          ) : activeView === 'banks' ? (
+            <div className="max-w-5xl mx-auto px-10 py-8">
+              <button
+                onClick={() => setActiveView('overview')}
+                className="mb-5 flex items-center gap-2 text-sm font-medium text-text-secondary hover:text-accent transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Voltar à Visão Geral
+              </button>
+              <BankOverview />
+            </div>
           ) : (
           <div className="max-w-5xl mx-auto px-10 py-8 space-y-10">
             
             {/* Header da Página */}
             <header className="space-y-1">
               <h2 className="text-2xl font-semibold text-text-primary tracking-tight">
-                {filters.cardId !== 'all' 
-                  ? `Detalhes: ${cards.find(c => c.id === filters.cardId)?.name}` 
-                  : 'Visão Geral'}
+                Visão Geral
               </h2>
               <p className="text-text-secondary text-sm">
-                {filters.cardId !== 'all'
-                  ? 'Acompanhe as transações deste cartão específico.'
-                  : 'Projeções e controle financeiro consolidado.'}
+                Projeções e controle financeiro consolidado.
               </p>
             </header>
 
@@ -393,7 +391,7 @@ export default function App() {
                   {focusedBlock === 'transactions' && (<div className="space-y-4"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold uppercase tracking-wider text-text-secondary">Histórico de Transações</h3><ImportModal /></div><TransactionList /></div>)}
                 </section>
               </div>
-            ) : filters.cardId === 'all' ? (
+            ) : (
               <DashboardStack
                 order={dashboardOrder}
                 onReorder={setDashboardOrder}
@@ -445,21 +443,6 @@ export default function App() {
                   ),
                 }}
               />
-            ) : (
-              <section className="card p-6 min-h-[400px]">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-text-secondary">
-                    Histórico de Transações
-                  </h3>
-                  <button
-                    onClick={() => setFilter('cardId', 'all')}
-                    className="text-xs text-accent hover:underline"
-                  >
-                    Limpar filtro de cartão
-                  </button>
-                </div>
-                <TransactionList />
-              </section>
             )}
 </div>
           )}
@@ -482,26 +465,15 @@ export default function App() {
         onClose={() => setIsCardManagerOpen(false)} 
       />
       
-      {isMemberManagerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface w-full max-w-lg rounded-2xl shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between p-5 border-b border-border/50">
-              <h2 className="text-lg font-bold text-text-primary">Membros da Casa</h2>
-              <button
-                onClick={() => setIsMemberManagerOpen(false)}
-                className="p-2 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-surface-hover transition-all"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="overflow-y-auto p-5 hud-scroll">
-              <MemberManager />
-            </div>
-          </div>
-        </div>
-      )}
+      <BankManagerModal 
+        isOpen={isBankManagerOpen} 
+        onClose={() => setIsBankManagerOpen(false)} 
+      />
+      
+<MemberManager
+        isOpen={isMemberManagerOpen}
+        onClose={() => setIsMemberManagerOpen(false)}
+      />
       
       <ToastContainer />
     </ErrorBoundary>

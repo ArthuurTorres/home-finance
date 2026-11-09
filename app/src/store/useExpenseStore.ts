@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { v4 as uuidv4 } from 'uuid'
-import type { Expense, Category, CardId, BudgetMap, SavingsGoal, CreditCardDef, Member } from '../utils/finance'
-import { DEFAULT_CATEGORIES, DEFAULT_CARDS, DEFAULT_DASHBOARD_ORDER } from '../utils/finance'
+import type { Expense, Category, CardId, BudgetMap, SavingsGoal, CreditCardDef, Member, Bank } from '../utils/finance'
+import { DEFAULT_CATEGORIES, DEFAULT_CARDS, DEFAULT_BANKS, DEFAULT_DASHBOARD_ORDER } from '../utils/finance'
 import { validateExpenses, exportToJSON, importFromJSON, getCategorySpending, getMonthlySummary, mergeDashboardOrder } from '../utils/finance'
 import type { MonthlySummary } from '../utils/finance'
 
@@ -65,21 +65,29 @@ interface ExpenseState {
   // Categorias Customizáveis
   categories: string[]
   addCategory: (name: string) => void
-  removeCategory: (name: string) => void
+  removeCategory: (name: string, redirectTo?: string) => void
   renameCategory: (oldName: string, newName: string) => void
+  categoryIcons: Record<string, string>
+  setCategoryIcon: (category: string, iconKey: string) => void
 
   // Cartões Customizáveis
   cards: CreditCardDef[]
   addCard: (card: Omit<CreditCardDef, 'id'>) => void
-  removeCard: (id: string) => void
+  removeCard: (id: string, redirectToId?: string) => void
   updateCard: (id: string, data: Partial<Omit<CreditCardDef, 'id'>>) => void
+
+  // Bancos (onde as receitas entram)
+  banks: Bank[]
+  addBank: (bank: Omit<Bank, 'id'>) => void
+  removeBank: (id: string, redirectToId?: string) => void
+  updateBank: (id: string, data: Partial<Omit<Bank, 'id'>>) => void
 
   // Membros da Casa (Avatares)
   members: Member[]
   activeMemberId: string | null
   addMember: (member: Omit<Member, 'id'>) => void
   updateMember: (id: string, data: Partial<Member>) => void
-  removeMember: (id: string) => void
+  removeMember: (id: string, redirectToId?: string) => void
   setActiveMember: (id: string | null) => void
 
   // Ordem dos blocos do dashboard
@@ -116,9 +124,11 @@ export const useExpenseStore = create<ExpenseState>()(
       goals: [],
       categories: [...DEFAULT_CATEGORIES],
       cards: [...DEFAULT_CARDS],
+      banks: [...DEFAULT_BANKS],
       members: [],
       activeMemberId: null,
       dashboardOrder: DEFAULT_DASHBOARD_ORDER,
+      categoryIcons: {},
 
       // --- Categorias Customizáveis ---
 
@@ -134,18 +144,26 @@ export const useExpenseStore = create<ExpenseState>()(
         get().addToast(`Categoria "${trimmed}" criada!`, 'success')
       },
 
-      removeCategory: (name) => {
-        // Impede remover categorias que estão em uso por despesas ativas
+      removeCategory: (name, redirectTo) => {
         const inUse = get().expenses.some((e) => e.category === name)
-        if (inUse) {
-          get().addToast('Não é possível excluir: existem despesas nesta categoria.', 'error')
+        if (inUse && !redirectTo) {
+          get().addToast('Escolha uma categoria de destino para mover as despesas.', 'error')
           return
         }
+        if (redirectTo === name) return
         set((s) => ({
           categories: s.categories.filter((c) => c !== name),
+          expenses: redirectTo
+            ? s.expenses.map((e) => (e.category === name ? { ...e, category: redirectTo } : e))
+            : s.expenses,
           budgets: Object.fromEntries(Object.entries(s.budgets).filter(([k]) => k !== name)) as BudgetMap,
         }))
-        get().addToast(`Categoria "${name}" removida.`, 'info')
+        get().addToast(
+          redirectTo
+            ? `Categoria "${name}" removida e lançamentos movidos para "${redirectTo}".`
+            : `Categoria "${name}" removida.`,
+          'info'
+        )
       },
 
       renameCategory: (oldName, newName) => {
@@ -162,8 +180,17 @@ export const useExpenseStore = create<ExpenseState>()(
           budgets: Object.fromEntries(
             Object.entries(s.budgets).map(([k, v]) => (k === oldName ? [trimmed, v] : [k, v]))
           ) as BudgetMap,
+          categoryIcons: s.categoryIcons?.[oldName]
+            ? Object.fromEntries(
+                Object.entries(s.categoryIcons).map(([k, v]) => (k === oldName ? [trimmed, v] : [k, v]))
+              )
+            : s.categoryIcons,
         }))
         get().addToast(`Categoria renomeada para "${trimmed}".`, 'success')
+      },
+
+      setCategoryIcon: (category, iconKey) => {
+        set((s) => ({ categoryIcons: { ...s.categoryIcons, [category]: iconKey } }))
       },
 
       // --- CRUD ---
@@ -272,17 +299,24 @@ export const useExpenseStore = create<ExpenseState>()(
         get().addToast(`Cartão "${newCard.name}" criado!`, 'success')
       },
 
-      removeCard: (id) => {
+      removeCard: (id, redirectToId) => {
         const inUse = get().expenses.some((e) => e.cardId === id)
-        if (inUse) {
-          get().addToast('Não é possível excluir: existem despesas neste cartão.', 'error')
+        if (inUse && !redirectToId) {
+          get().addToast('Escolha um cartão de destino para mover as despesas.', 'error')
           return
         }
+        if (redirectToId === id) return
         set((s) => ({
           cards: s.cards.filter((c) => c.id !== id),
           filters: s.filters.cardId === id ? { ...s.filters, cardId: 'all' } : s.filters,
+          expenses: redirectToId
+            ? s.expenses.map((e) => (e.cardId === id ? { ...e, cardId: redirectToId } : e))
+            : s.expenses,
         }))
-        get().addToast('Cartão removido.', 'info')
+        get().addToast(
+          redirectToId ? 'Cartão removido e despesas transferidas.' : 'Cartão removido.',
+          'info'
+        )
       },
 
       updateCard: (id, data) => {
@@ -290,6 +324,40 @@ export const useExpenseStore = create<ExpenseState>()(
           cards: s.cards.map((c) => (c.id === id ? { ...c, ...data } : c)),
         }))
         get().addToast('Cartão atualizado!', 'success')
+      },
+
+      // --- Bancos ---
+
+      addBank: (data) => {
+        const newBank: Bank = { ...data, id: uuidv4() }
+        set((s) => ({ banks: [...s.banks, newBank] }))
+        get().addToast(`Banco "${newBank.name}" criado!`, 'success')
+      },
+
+      removeBank: (id, redirectToId) => {
+        const inUse = get().expenses.some((e) => e.bankId === id)
+        if (inUse && !redirectToId) {
+          get().addToast('Escolha um banco de destino para mover os lançamentos.', 'error')
+          return
+        }
+        if (redirectToId === id) return
+        set((s) => ({
+          banks: s.banks.filter((b) => b.id !== id),
+          expenses: redirectToId
+            ? s.expenses.map((e) => (e.bankId === id ? { ...e, bankId: redirectToId } : e))
+            : s.expenses,
+        }))
+        get().addToast(
+          redirectToId ? 'Banco removido e lançamentos transferidos.' : 'Banco removido.',
+          'info'
+        )
+      },
+
+      updateBank: (id, data) => {
+        set((s) => ({
+          banks: s.banks.map((b) => (b.id === id ? { ...b, ...data } : b)),
+        }))
+        get().addToast('Banco atualizado!', 'success')
       },
 
       // --- Membros ---
@@ -306,18 +374,27 @@ export const useExpenseStore = create<ExpenseState>()(
         }))
       },
 
-      removeMember: (id) => {
+      removeMember: (id, redirectToId) => {
         const member = get().members.find((m) => m.id === id)
         const hasTransactions = get().expenses.some((e) => e.memberId === id)
-        if (hasTransactions) {
-          get().addToast(`Não é possível remover "${member?.name}": possui transações.`, 'error')
+        if (hasTransactions && !redirectToId) {
+          get().addToast(`Escolha um membro de destino para as transações de "${member?.name}".`, 'error')
           return
         }
+        if (redirectToId === id) return
         set((s) => ({
           members: s.members.filter((m) => m.id !== id),
           activeMemberId: s.activeMemberId === id ? null : s.activeMemberId,
+          expenses: redirectToId
+            ? s.expenses.map((e) => (e.memberId === id ? { ...e, memberId: redirectToId } : e))
+            : s.expenses,
         }))
-        get().addToast(`Membro "${member?.name}" removido.`, 'info')
+        get().addToast(
+          redirectToId
+            ? `Membro "${member?.name}" removido e transações transferidas.`
+            : `Membro "${member?.name}" removido.`,
+          'info'
+        )
       },
 
       setActiveMember: (id) => set({ activeMemberId: id }),
@@ -366,9 +443,11 @@ export const useExpenseStore = create<ExpenseState>()(
         goals: state.goals,
         categories: state.categories,
         cards: state.cards,
+        banks: state.banks,
         members: state.members,
         activeMemberId: state.activeMemberId,
         dashboardOrder: state.dashboardOrder,
+        categoryIcons: state.categoryIcons,
       }),
     }
   )

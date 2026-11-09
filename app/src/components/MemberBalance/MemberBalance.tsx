@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useExpenseStore } from '../../store/useExpenseStore'
-import { formatBRL } from '../../utils/finance'
+import { formatBRL, getBalanceSeverity } from '../../utils/finance'
 import type { MemberAvatar } from '../../utils/finance'
 import { AvatarIcon } from '../AvatarIcon/AvatarIcon'
 
@@ -75,6 +75,9 @@ export function MemberBalance() {
       <div className="space-y-3">
         {balances.map((member) => {
           const barWidth = Math.max((member.expense / maxExpense) * 100, 2)
+          const severity = getBalanceSeverity(member.balance, member.income)
+          const balanceTone =
+            severity === 'danger' ? 'text-danger' : severity === 'warning' ? 'text-warning' : 'text-success'
 
           return (
             <div key={member.id} className="group">
@@ -93,9 +96,7 @@ export function MemberBalance() {
                 </div>
                 <div className="text-right shrink-0">
                   <p
-                    className={`text-sm font-bold tabular-nums ${
-                      member.balance >= 0 ? 'text-success' : 'text-warning'
-                    }`}
+                    className={`text-sm font-bold tabular-nums ${balanceTone}`}
                   >
                     {member.balance >= 0 ? '+' : ''}
                     {formatBRL(member.balance)}

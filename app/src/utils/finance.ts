@@ -63,6 +63,13 @@ export interface CreditCardDef {
   color: string
 }
 
+// Interface para banco/conta onde a receita é depositada
+export interface Bank {
+  id: string
+  name: string
+  color: string
+}
+
 export const TransactionTypeSchema = z.enum(['income', 'expense']).default('expense')
 export type TransactionType = z.infer<typeof TransactionTypeSchema>
 
@@ -97,6 +104,7 @@ export const ExpenseSchema = z.object({
   isRecurring: z.boolean().default(false),
   category: CategorySchema,
   cardId: CardIdSchema,
+  bankId: z.string().min(1).optional(),
   type: TransactionTypeSchema,
   memberId: z.string().uuid().optional(),
   essentiality: z.enum(['essential', 'necessary', 'extra']).nullable().optional(),
@@ -108,7 +116,8 @@ export type Expense = z.infer<typeof ExpenseSchema>
 export interface MonthlyProjection {
   month: string // YYYY-MM
   label: string // "Nov 2026"
-  total: number // centavos
+  total: number // centavos (só despesas)
+  income: number // centavos (só receitas)
   expenses: Expense[]
 }
 
@@ -140,6 +149,14 @@ export type SavingsGoal = z.infer<typeof SavingsGoalSchema>
 // --- Constantes ---
 
 export const CATEGORIES = [...DEFAULT_CATEGORIES]
+export const DEFAULT_BANKS: Bank[] = [
+  { id: 'nubank', name: 'Nubank', color: '#820ad1' },
+  { id: 'itau', name: 'Itaú', color: '#003c7e' },
+  { id: 'bb', name: 'Banco do Brasil', color: '#f5e000' },
+  { id: 'inter', name: 'Inter', color: '#ff7a00' },
+  { id: 'caixa', name: 'Caixa', color: '#0f6fb8' },
+]
+
 export const DEFAULT_CARDS: CreditCardDef[] = [
   { id: 'nubank', name: 'Nubank', color: '#820ad1' },
   { id: 'inter', name: 'Inter', color: '#ff7a00' },
@@ -296,33 +313,47 @@ export function generateProjections(
 
     const monthExpenses: Expense[] = []
     let total = 0
+    let income = 0
 
     for (const expense of expenses) {
+      const isIncome = expense.type === 'income'
       const futureInstallments = getFutureInstallments(expense)
       const match = futureInstallments.find(
         (fi) => fi.month.getTime() === targetMonth.getTime()
       )
 
       if (match) {
-        monthExpenses.push(expense)
-        total += match.amount
+        if (isIncome) {
+          income += match.amount
+        } else {
+          monthExpenses.push(expense)
+          total += match.amount
+        }
       } else if (expense.installments <= 1 && !expense.isRecurring) {
         const expenseMonth = startOfMonth(new Date(expense.date))
         if (isEqual(expenseMonth, targetMonth)) {
-          monthExpenses.push(expense)
-          total += expense.amount
+          if (isIncome) {
+            income += expense.amount
+          } else {
+            monthExpenses.push(expense)
+            total += expense.amount
+          }
         }
       }
     }
 
-    // Adiciona projeções de despesas recorrentes (fixas) não pagas
+    // Adiciona projeções de recorrentes não pagas — cada tipo no seu lado
     const recurring = getRecurringProjections(expenses, targetMonth)
     for (const r of recurring) {
-      monthExpenses.push(r)
-      total += r.amount
+      if (r.type === 'income') {
+        income += r.amount
+      } else {
+        monthExpenses.push(r)
+        total += r.amount
+      }
     }
 
-    projections.push({ month: monthKey, label, total, expenses: monthExpenses })
+    projections.push({ month: monthKey, label, total, income, expenses: monthExpenses })
   }
 
   return projections
@@ -330,6 +361,7 @@ export function generateProjections(
 
 export function getTotalDebt(expenses: Expense[]): number {
   return expenses.reduce((sum, e) => {
+    if (e.type !== 'expense') return sum
     if (e.isPaid) return sum
     const remaining = e.installments - e.paidInstallments
     if (remaining <= 0) return sum
@@ -343,18 +375,9 @@ export function getTotalDebt(expenses: Expense[]): number {
 }
 
 export function getCurrentMonthTotal(expenses: Expense[]): number {
-  const now = startOfMonth(new Date())
-  return expenses.reduce((sum, e) => {
-    if (e.installments <= 1) {
-      const expenseMonth = startOfMonth(new Date(e.date))
-      return isEqual(expenseMonth, now) ? sum + e.amount : sum
-    }
-    const futureInstallments = getFutureInstallments(e)
-    const match = futureInstallments.find(
-      (fi) => fi.month.getTime() === now.getTime()
-    )
-    return match ? sum + match.amount : sum
-  }, 0)
+  return getMonthEntries(expenses, getMonthKey())
+    .filter(({ expense }) => expense.type !== 'income')
+    .reduce((sum, entry) => sum + entry.amount, 0)
 }
 
 // --- Projeção de Despesas Fixas (Recorrentes) ---
@@ -466,7 +489,14 @@ export function getMonthlySummary(expenses: Expense[], month: string): MonthlySu
     const eMonth = startOfMonth(new Date(e.date))
     if (!isEqual(eMonth, target)) continue
     if (e.type === 'income') {
-      income += e.amount
+      // Para receitas parceladas, soma a parcela do mês
+      if (e.installments > 1) {
+        const future = getFutureInstallments(e)
+        const match = future.find((fi) => fi.month.getTime() === target.getTime())
+        if (match) income += match.amount
+      } else {
+        income += e.amount
+      }
     } else {
       // Para despesas parceladas, soma a parcela do mês
       if (e.installments > 1) {
@@ -494,6 +524,82 @@ export function getMonthlySummary(expenses: Expense[], month: string): MonthlySu
   for (const r of recurringExpense) expense += r.amount
 
   return { income, expense, balance: income - expense }
+}
+
+/** Limite de "aperto": saldo positivo abaixo de 15% da receita conta como próximo do vermelho. */
+export const BALANCE_WARNING_RATIO = 0.15
+
+export type BalanceSeverity = 'positive' | 'warning' | 'danger'
+
+/**
+ * Classifica um saldo mensal em três faixas:
+ * - `danger`: negativo (fecha no vermelho)
+ * - `warning`: positivo, mas abaixo de `BALANCE_WARNING_RATIO` da receita (próximo do zero)
+ * - `positive`: com folga
+ * Sem receita no mês, qualquer saldo negativo já é `danger` e o resto é `positive`.
+ */
+export function getBalanceSeverity(balance: number, income: number): BalanceSeverity {
+  if (balance < 0) return 'danger'
+  if (income <= 0) return 'positive'
+  return balance < income * BALANCE_WARNING_RATIO ? 'warning' : 'positive'
+}
+
+export interface BankSummary {
+  bank: Bank
+  total: number
+  /** Saldo em conta: entradas menos gastos pagos direto dela (Pix/débito). */
+  balance: number
+  percentage: number
+  transactions: number
+}
+
+/**
+ * Calcula quanto cada banco recebeu de receitas e o saldo em conta (entradas
+ * menos gastos pagos direto da conta — Pix/débito; fatura de cartão não debita).
+ * Com `month` vazio ou `'all'`, considera todos os meses. Lançamentos sem
+ * `bankId` são agrupados em "Sem banco".
+ */
+export function getBankSummary(banks: Bank[], expenses: Expense[], month: string): BankSummary[] {
+  const allMonths = !month || month === 'all'
+  const inMonth = (e: Expense) =>
+    allMonths || isEqual(startOfMonth(new Date(e.date)), new Date(`${month}-01T00:00:00`))
+
+  const incomes = expenses.filter((e) => e.type === 'income' && inMonth(e))
+  const debits = expenses.filter((e) => e.type === 'expense' && e.cardId === 'cash' && inMonth(e))
+
+  const total = incomes.reduce((sum, e) => sum + e.amount, 0)
+  const balanceOf = (bankId?: string) =>
+    incomes.filter((e) => (e.bankId ?? undefined) === bankId).reduce((s, e) => s + e.amount, 0) -
+    debits.filter((e) => (e.bankId ?? undefined) === bankId).reduce((s, e) => s + e.amount, 0)
+
+  const result: BankSummary[] = banks.map((bank) => {
+    const bankTx = incomes.filter((e) => e.bankId === bank.id)
+    return {
+      bank,
+      total: bankTx.reduce((s, e) => s + e.amount, 0),
+      balance: balanceOf(bank.id),
+      percentage: 0,
+      transactions: bankTx.length,
+    }
+  })
+
+  const unbanked = incomes.filter((e) => !e.bankId)
+  const unbankedBalance = balanceOf(undefined)
+  if (unbanked.length > 0 || unbankedBalance !== 0) {
+    result.push({
+      bank: { id: 'no-bank', name: 'Sem banco', color: '#9ca3af' },
+      total: unbanked.reduce((s, e) => s + e.amount, 0),
+      balance: unbankedBalance,
+      percentage: 0,
+      transactions: unbanked.length,
+    })
+  }
+
+  if (total > 0) {
+    for (const r of result) r.percentage = (r.total / total) * 100
+  }
+
+  return result.sort((a, b) => b.total - a.total)
 }
 
 // --- Exportação / Backup (Melhoria #8) ---
@@ -676,6 +782,7 @@ export function getDailySpending(expenses: Expense[], month: string): Record<num
 export interface DailyDetailItem {
   description: string
   amount: number // centavos
+  category: string
 }
 
 export interface DailyDetail {
@@ -699,7 +806,11 @@ export function getDailyDetail(
       : parseLocalDate(expense.date).getDate()
     if (!Number.isFinite(day) || day < 1 || day > 31) continue
     if (!days[day]) days[day] = { fixed: [], variable: [] }
-    const item: DailyDetailItem = { description: expense.description, amount }
+    const item: DailyDetailItem = {
+      description: expense.description,
+      amount,
+      category: expense.category,
+    }
     if (expense.isRecurring) {
       days[day]!.fixed.push(item)
     } else {

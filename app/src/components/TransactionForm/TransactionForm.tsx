@@ -4,6 +4,7 @@ import { parseBRL, formatBRL, getInstallmentValue, ESSENTIALITY_OPTIONS, PRIVACY
 import type { Category, CardId, TransactionType, Member, MemberAvatar, Essentiality } from '../../utils/finance'
 import { CreditCard } from '../CreditCard/CreditCard'
 import { AvatarIcon } from '../AvatarIcon/AvatarIcon'
+import { getCategoryIcon } from '../../utils/categoryIcons'
 
 interface FormState {
   description: string
@@ -13,6 +14,7 @@ interface FormState {
   installments: number
   category: Category
   cardId: CardId
+  bankId: string
   isPaid: boolean
   isRecurring: boolean
   type: TransactionType
@@ -30,6 +32,7 @@ const INITIAL_FORM: FormState = {
   installments: 1,
   category: '' as Category,
   cardId: 'cash' as CardId,
+  bankId: '',
   isPaid: false,
   isRecurring: false,
   type: 'expense',
@@ -53,7 +56,9 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
   const expenses = useExpenseStore((s) => s.expenses)
   const filters = useExpenseStore((s) => s.filters)
   const categories = useExpenseStore((s) => s.categories)
+  const categoryIcons = useExpenseStore((s) => s.categoryIcons)
   const cards = useExpenseStore((s) => s.cards)
+  const banks = useExpenseStore((s) => s.banks)
   const members = useExpenseStore((s) => s.members)
 
   const getInitials = (name: string) => {
@@ -86,6 +91,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
           installments: expense.installments,
           category: expense.category,
           cardId: expense.cardId,
+          bankId: expense.bankId ?? '',
           isPaid: expense.isPaid ?? false,
           isRecurring: expense.isRecurring ?? false,
           type: expense.type ?? 'expense',
@@ -101,10 +107,11 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
         ...INITIAL_FORM,
         category: categories[0] ?? '',
         cardId: (filters.cardId !== 'all' ? filters.cardId : f.cardId) || (cards[0]?.id ?? ''),
+        bankId: '',
         isRecurring: false,
       }))
     }
-  }, [editingId, expenses, filters.cardId, cards])
+  }, [editingId, expenses, filters.cardId, cards, banks])
 
   function handleAmountChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value
@@ -147,6 +154,8 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
     e.preventDefault()
     const amountCents = parseBRL(form.amount)
     if (!form.description.trim() || amountCents <= 0) return
+    // Banco é obrigatório nos dois tipos: é o que liga a transação a uma conta.
+    if (!form.bankId) return
 
     // Receita não tem cartão: sempre Dinheiro/PIX/Débito.
     // Despesa: usa o selecionado, ou o filtro ativo, ou o primeiro cartão disponível.
@@ -163,6 +172,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
       installments: form.installments,
       category: form.category,
       cardId: resolvedCardId,
+      bankId: form.bankId,
       memberId: form.memberId || undefined,
       isPaid: form.isPaid,
       isRecurring: form.isRecurring,
@@ -229,7 +239,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
 
   const isIncome = form.type === 'income'
   const amountCents = parseBRL(form.amount)
-  const canSubmit = form.description.trim().length > 0 && amountCents > 0
+  const canSubmit = form.description.trim().length > 0 && amountCents > 0 && form.bankId.length > 0
   const installmentValue = form.installments > 1 ? getInstallmentValue(amountCents, form.installments) : 0
   const isCreditCard = form.cardId !== 'cash'
   const showDueDay = !isIncome && (form.installments > 1 || form.isRecurring)
@@ -349,17 +359,21 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
         <div>
           <label className={labelClass}>Categoria</label>
           <div className="flex flex-wrap gap-1.5">
-            {categories.map((cat: string) => (
+            {categories.map((cat: string) => {
+              const Icon = getCategoryIcon(cat, categoryIcons)
+              return (
               <button
                 key={cat}
                 type="button"
                 onClick={() => setForm({ ...form, category: cat as Category })}
                 aria-pressed={form.category === cat}
-                className={chipClass(form.category === cat)}
+                className={`${chipClass(form.category === cat)} inline-flex items-center gap-1.5`}
               >
+                <Icon className="w-3 h-3" strokeWidth={2.5} />
                 {cat}
               </button>
-            ))}
+              )
+            })}
           </div>
         </div>
       </div>
@@ -407,6 +421,61 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
           </div>
         </div>
       )}
+
+      {/* --- Banco/conta da transação --- */}
+      <div>
+        <label className={labelClass}>
+          {isIncome ? 'Onde o valor entrou?' : 'De qual conta saiu?'}
+          <span className="ml-1.5 text-danger" aria-hidden="true">*</span>
+          {!form.bankId && (
+            <span className="ml-2 text-[10px] font-medium normal-case tracking-normal text-danger">
+              escolha o banco
+            </span>
+          )}
+        </label>
+        {banks.length === 0 ? (
+          <p className="text-xs text-text-tertiary">
+            Nenhum banco cadastrado. Cadastre um em “Gerenciar Bancos” para lançar transações.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {banks.map((bank) => {
+              const selected = form.bankId === bank.id
+              const selectedClass = isIncome
+                ? 'border-success bg-success/10 shadow-sm'
+                : 'border-accent bg-accent/10 shadow-sm'
+              const textClass = isIncome ? 'text-success' : 'text-accent'
+              return (
+                <button
+                  key={bank.id}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, bankId: bank.id }))}
+                  aria-pressed={selected}
+                  aria-label={`Selecionar banco ${bank.name}`}
+                  className={`px-3 h-14 rounded-xl border-2 flex items-center gap-2 transition-all duration-200 ${
+                    selected
+                      ? selectedClass
+                      : 'border-border bg-surface-muted hover:border-text-tertiary/30'
+                  }`}
+                >
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: bank.color }}
+                    aria-hidden="true"
+                  />
+                  <span
+                    className={`text-[10px] font-bold uppercase tracking-tight leading-none ${
+                      selected ? textClass : 'text-text-tertiary'
+                    }`}
+                  >
+                    {bank.name}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
 
       {/* --- Campos exclusivos de despesa --- */}
       {!isIncome && (

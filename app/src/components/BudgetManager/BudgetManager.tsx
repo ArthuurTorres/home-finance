@@ -2,13 +2,15 @@ import { useMemo } from 'react'
 import { useExpenseStore } from '../../store/useExpenseStore'
 import { formatBRL, getCategorySpending } from '../../utils/finance'
 import type { CategorySpending } from '../../utils/finance'
+import { getCategoryIcon } from '../../utils/categoryIcons'
 
 interface CategoryBarProps extends CategorySpending {
   onLimitChange: (category: string, value: string) => void
 }
 
 /* ── Barra de categoria com badge de status ── */
-function CategoryBar({ category, spent, limit, percentage, over, onLimitChange }: CategoryBarProps) {
+function CategoryBar({ category, spent, limit, percentage, over, onLimitChange, iconKey }: CategoryBarProps & { iconKey?: string }) {
+  const Icon = getCategoryIcon(category, iconKey ? { [category]: iconKey } : undefined)
   const statusColor = over
     ? 'from-red-400 to-red-500'
     : percentage > 80
@@ -25,9 +27,12 @@ function CategoryBar({ category, spent, limit, percentage, over, onLimitChange }
 
   return (
     <div className="group p-3 rounded-xl bg-white border border-border hover:border-border-strong hover:shadow-sm transition-all duration-200 w-40 shrink-0 snap-start">
-      {/* ── Header: nome + badge ── */}
+      {/* ── Header: ícone + nome + badge ── */}
       <div className="flex items-start justify-between gap-1 mb-2">
-        <span className="text-[11px] font-semibold text-text-primary leading-tight truncate" title={category}>{category}</span>
+        <div className="flex items-center gap-1 min-w-0">
+          <Icon className="w-3 h-3 shrink-0 text-accent" strokeWidth={2.5} />
+          <span className="text-[11px] font-semibold text-text-primary leading-tight truncate" title={category}>{category}</span>
+        </div>
         <span className={`shrink-0 text-[8px] font-bold uppercase tracking-wider px-1 py-0.5 rounded-full border ${statusBadge}`}>
           {statusLabel}
         </span>
@@ -85,6 +90,7 @@ export function BudgetManager() {
   const expenses = useExpenseStore((s) => s.expenses)
   const budgets = useExpenseStore((s) => s.budgets)
   const categories = useExpenseStore((s) => s.categories)
+  const categoryIcons = useExpenseStore((s) => s.categoryIcons)
 
   const currentMonth = filters.month !== 'all' ? filters.month : new Date().toISOString().slice(0, 7)
   const spendingData = useMemo<CategorySpending[]>(
@@ -131,8 +137,8 @@ export function BudgetManager() {
         </div>
       </div>
 
-      {/* ── Faixa horizontal de categorias ── */}
-      <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 snap-x">
+      {/* ── Faixa horizontal de categorias com scrollbar estilizada ── */}
+      <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 snap-x scrollbar-thin">
         {spendingData.map(({ category, spent, limit, percentage, over }) => (
           <CategoryBar
             key={category}
@@ -141,6 +147,7 @@ export function BudgetManager() {
             limit={limit}
             percentage={percentage}
             over={over}
+            iconKey={categoryIcons[category]}
             onLimitChange={handleLimitChange}
           />
         ))}
