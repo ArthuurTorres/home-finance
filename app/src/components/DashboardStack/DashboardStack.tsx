@@ -22,10 +22,11 @@ export function DashboardStack({ order, onReorder, onBlockClick, blocks }: Dashb
   const [overId, setOverId] = useState<string | null>(null)
 
   const known = Object.keys(blocks) as DashboardBlockId[]
-  const visible = [
-    ...order.filter((id): id is DashboardBlockId => known.includes(id as DashboardBlockId)),
-    ...known.filter((id) => !order.includes(id)),
-  ]
+  // Remove ids repetidos da ordem salva: sem isso o mesmo bloco renderiza duas vezes.
+  const inOrder = [...new Set(order)].filter((id): id is DashboardBlockId =>
+    known.includes(id as DashboardBlockId)
+  )
+  const visible = [...inOrder, ...known.filter((id) => !inOrder.includes(id))]
 
   function handleDrop(e: React.DragEvent, targetId: DashboardBlockId) {
     const sourceId = (e.dataTransfer.getData('text/plain') || dragging) as DashboardBlockId | null

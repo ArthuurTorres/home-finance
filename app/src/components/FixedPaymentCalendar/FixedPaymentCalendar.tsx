@@ -1,6 +1,6 @@
 /**
- * Calendário compacto de pagamentos fixos — aparece na sidebar da aba "Fixas".
- * Grade mensal com o dia de vencimento de cada despesa recorrente,
+ * Calendário de pagamentos fixos — aparece na sidebar da aba "Fixas".
+ * Grade mensal espaçada com o dia de vencimento de cada despesa recorrente,
  * ícone da categoria e total previsto no mês.
  */
 import { useMemo } from 'react'
@@ -22,6 +22,7 @@ interface DayCell {
 }
 
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
+const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 const MAX_DOTS = 3
 
 export function FixedPaymentCalendar() {
@@ -66,11 +67,11 @@ export function FixedPaymentCalendar() {
 
   if (withPayment.length === 0) {
     return (
-      <div className="px-3 py-2">
-        <span className="text-[10px] font-bold text-text-primary uppercase tracking-wide">
-          Pagamentos Fixos
-        </span>
-        <p className="text-[10px] text-text-tertiary mt-1.5 leading-relaxed">
+      <div className="rounded-xl border border-border/60 bg-surface-muted/40 p-3">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
+          Pagamentos fixos
+        </p>
+        <p className="mt-1.5 text-[11px] leading-relaxed text-text-tertiary">
           Nenhuma despesa fixa cadastrada ainda.
         </p>
       </div>
@@ -78,27 +79,36 @@ export function FixedPaymentCalendar() {
   }
 
   return (
-    <div className="px-3 py-1.5">
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[10px] font-bold text-text-primary uppercase tracking-wide">
-          Pagamentos Fixos
-        </span>
-        <span className="text-[10px] font-semibold text-text-secondary">
-          {formatBRL(totalExpected)}
-        </span>
+    <div className="rounded-xl border border-border/60 bg-surface-muted/40 p-3">
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
+            Pagamentos fixos
+          </p>
+          <p className="mt-0.5 truncate text-[11px] font-bold capitalize text-text-primary">
+            {MONTHS[month]}/{year}
+          </p>
+        </div>
+        <div className="flex-shrink-0 text-right">
+          <p className="text-[9px] uppercase tracking-wider text-text-tertiary">Previsto</p>
+          <p className="text-[13px] font-bold leading-tight text-accent">{formatBRL(totalExpected)}</p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-0.5 mb-1">
+      <div className="mb-1.5 grid grid-cols-7 gap-1">
         {WEEKDAYS.map((d, i) => (
-          <div key={i} className="text-center text-[8px] font-semibold text-text-tertiary">
+          <div
+            key={i}
+            className="text-center text-[9px] font-semibold uppercase text-text-tertiary"
+          >
             {d}
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-0.5">
+      <div className="grid grid-cols-7 gap-1">
         {Array.from({ length: firstDayOffset }).map((_, i) => (
-          <div key={`offset-${i}`} className="h-5" />
+          <div key={`offset-${i}`} className="h-11" />
         ))}
 
         {grid.map((day) => {
@@ -115,45 +125,45 @@ export function FixedPaymentCalendar() {
                       .join('\n')}`
                   : `${day.dueDay}/${month + 1}`
               }
-              className={`h-5 rounded flex flex-col items-center justify-center relative transition-colors ${
+              className={`flex h-11 flex-col items-center justify-center gap-1 rounded-lg transition-colors ${
                 isToday
-                  ? 'bg-accent/15 ring-1 ring-accent/50'
+                  ? 'bg-accent/10 ring-1 ring-accent/50'
                   : hasPayments
-                    ? 'bg-surface-muted'
+                    ? 'bg-surface shadow-sm'
                     : ''
               }`}
             >
               <span
-                className={`text-[9px] leading-none ${
-                  isToday ? 'text-accent font-bold' : 'text-text-tertiary'
+                className={`text-[11px] leading-none tabular-nums ${
+                  isToday
+                    ? 'font-bold text-accent'
+                    : hasPayments
+                      ? 'font-semibold text-text-primary'
+                      : 'text-text-tertiary'
                 }`}
               >
                 {day.dueDay}
               </span>
 
               {hasPayments && (
-                <div className="flex items-center gap-px mt-0.5">
+                <div className="flex items-center gap-[3px]">
                   {day.payments.slice(0, MAX_DOTS).map((p) => {
                     const Icon = getCategoryIcon(p.category, categoryIcons)
                     return (
                       <span
                         key={p.expenseId}
-                        className="w-2 h-2 rounded-full flex items-center justify-center bg-accent/25 text-accent"
+                        className="flex h-4 w-4 items-center justify-center rounded-[4px] bg-accent/15 text-accent"
                       >
-                        <Icon className="w-1.5 h-1.5" aria-hidden="true" />
+                        <Icon className="h-2.5 w-2.5" aria-hidden="true" />
                       </span>
                     )
                   })}
                   {day.payments.length > MAX_DOTS && (
-                    <span className="text-[7px] font-semibold text-text-tertiary">
+                    <span className="text-[9px] font-semibold leading-none text-text-tertiary">
                       +{day.payments.length - MAX_DOTS}
                     </span>
                   )}
                 </div>
-              )}
-
-              {hasPayments && (
-                <div className="absolute bottom-0.5 left-1 right-1 h-0.5 rounded-full bg-accent/40" />
               )}
             </div>
           )
@@ -161,18 +171,25 @@ export function FixedPaymentCalendar() {
       </div>
 
       {nextPayment && (
-        <div className="mt-1 pt-1 border-t border-border/60 flex items-center gap-1.5">
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-border/60 bg-surface px-2 py-1.5">
           {(() => {
             const Icon = getCategoryIcon(nextPayment.payments[0]!.category, categoryIcons)
-            return <Icon className="w-3 h-3 text-accent flex-shrink-0" aria-hidden="true" />
+            return (
+              <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-accent/15 text-accent">
+                <Icon className="h-3 w-3" aria-hidden="true" />
+              </span>
+            )
           })()}
-          <div className="flex-1 min-w-0 text-[9px] leading-tight truncate">
-            <span className="text-text-tertiary">Próximo: </span>
-            <span className="font-semibold text-text-primary">{nextPayment.payments[0]!.description}</span>
-            <span className="text-text-tertiary"> · Dia {nextPayment.dueDay} · {formatBRL(nextPayment.total)}</span>
+          <div className="min-w-0 flex-1 leading-tight">
+            <p className="truncate text-[10px] font-semibold text-text-primary">
+              {nextPayment.payments[0]!.description}
+            </p>
+            <p className="text-[9px] text-text-tertiary">
+              Dia {nextPayment.dueDay} · {formatBRL(nextPayment.total)}
+            </p>
           </div>
-          <span className="text-[8px] font-bold text-accent flex-shrink-0">
-            {nextPayment.dueDay === todayDay ? 'HOJE' : `em ${nextPayment.dueDay - todayDay}d`}
+          <span className="flex-shrink-0 rounded-md bg-accent/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-accent">
+            {nextPayment.dueDay === todayDay ? 'Hoje' : `em ${nextPayment.dueDay - todayDay}d`}
           </span>
         </div>
       )}

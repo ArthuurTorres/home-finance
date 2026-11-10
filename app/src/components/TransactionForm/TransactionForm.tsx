@@ -154,9 +154,7 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
     e.preventDefault()
     const amountCents = parseBRL(form.amount)
     if (!form.description.trim() || amountCents <= 0) return
-    // Banco é obrigatório, exceto em despesa fixa: o banco só é escolhido na hora de pagar.
-    const willBeFixed = form.type === 'expense' && form.isRecurring && form.cardId === 'cash'
-    if (!willBeFixed && !form.bankId) return
+    if (bankNeeded && !form.bankId) return
 
     // Receita não tem cartão: sempre Dinheiro/PIX/Débito.
     // Despesa: usa o selecionado, ou o filtro ativo, ou o primeiro cartão disponível.
@@ -164,6 +162,10 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
       form.type === 'income'
         ? ('cash' as CardId)
         : form.cardId || (filters.cardId !== 'all' ? filters.cardId : '') || (cards[0]?.id ?? 'cash')
+
+    // Contas comuns entram quitadas; só as fixas ficam pendentes para pagamento manual.
+    // Parceladas continuam pendentes: as parcelas futuras são dívida.
+    const isPaid = form.isPaid || (!form.isRecurring && form.installments <= 1)
 
     const payload = {
       description: form.description.trim(),
@@ -173,11 +175,11 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
       installments: form.installments,
       category: form.category,
       cardId: resolvedCardId,
-      bankId: form.bankId || undefined,
+      bankId: bankNeeded ? form.bankId : undefined,
       memberId: form.memberId || undefined,
-      isPaid: form.isPaid,
+      isPaid,
       isRecurring: form.isRecurring,
-      paidInstallments: form.isPaid ? form.installments : 0,
+      paidInstallments: isPaid ? form.installments : 0,
       type: form.type,
       essentiality: form.type === 'income' ? null : form.essentiality,
       tags: form.tags,
@@ -241,8 +243,12 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
   const isIncome = form.type === 'income'
   const amountCents = parseBRL(form.amount)
   const isFixedExpense = !isIncome && form.isRecurring
+  const isCashPayment = form.cardId === 'cash'
+  // Receita sempre pede a conta de entrada. Despesa só pede quando o pagamento sai da conta
+  // (dinheiro/PIX) — no cartão o valor vai para a fatura. Despesa fixa escolhe a conta ao pagar.
+  const bankNeeded = isIncome || (isCashPayment && !isFixedExpense)
   const canSubmit =
-    form.description.trim().length > 0 && amountCents > 0 && (isFixedExpense || form.bankId.length > 0)
+    form.description.trim().length > 0 && amountCents > 0 && (!bankNeeded || form.bankId.length > 0)
   const installmentValue = form.installments > 1 ? getInstallmentValue(amountCents, form.installments) : 0
   const isCreditCard = form.cardId !== 'cash'
   const showDueDay = !isIncome && (form.installments > 1 || form.isRecurring)
@@ -256,6 +262,60 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
         ? 'border-accent bg-accent/10 text-accent shadow-sm'
         : 'border-border bg-surface text-text-secondary hover:border-text-tertiary/40'
     }`
+
+  const bankField = (
+    <div>
+      <label className={labelClass}>
+        {isIncome ? 'Onde o valor entrou?' : 'De qual conta saiu?'}
+        <span className="ml-1.5 text-danger" aria-hidden="true">*</span>
+        {!form.bankId && (
+          <span className="ml-2 text-[10px] font-medium normal-case tracking-normal text-danger">
+            escolha o banco
+          </span>
+        )}
+      </label>
+      {banks.length === 0 ? (
+        <p className="text-xs text-text-tertiary">
+          Nenhum banco cadastrado. Cadastre um em “Gerenciar Bancos” para lançar transações.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {banks.map((bank) => {
+            const selected = form.bankId === bank.id
+            const selectedClass = isIncome
+              ? 'border-success bg-success/10 shadow-sm'
+              : 'border-accent bg-accent/10 shadow-sm'
+            const textClass = isIncome ? 'text-success' : 'text-accent'
+            return (
+              <button
+                key={bank.id}
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, bankId: bank.id }))}
+                aria-pressed={selected}
+                aria-label={`Selecionar banco ${bank.name}`}
+                className={`px-3 h-14 rounded-xl border-2 flex items-center gap-2 transition-all duration-200 ${
+                  selected ? selectedClass : 'border-border bg-surface-muted hover:border-text-tertiary/30'
+                }`}
+              >
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: bank.color }}
+                  aria-hidden="true"
+                />
+                <span
+                  className={`text-[10px] font-bold uppercase tracking-tight leading-none ${
+                    selected ? textClass : 'text-text-tertiary'
+                  }`}
+                >
+                  {bank.name}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -425,66 +485,8 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
         </div>
       )}
 
-      {/* --- Banco/conta da transação --- */}
-      {isFixedExpense ? (
-        <p className="rounded-xl border border-dashed border-border bg-surface-muted px-4 py-3 text-xs text-text-secondary">
-          Despesa fixa não precisa de banco agora — você escolhe a conta na hora de pagar.
-        </p>
-      ) : (
-      <div>
-        <label className={labelClass}>
-          {isIncome ? 'Onde o valor entrou?' : 'De qual conta saiu?'}
-          <span className="ml-1.5 text-danger" aria-hidden="true">*</span>
-          {!form.bankId && (
-            <span className="ml-2 text-[10px] font-medium normal-case tracking-normal text-danger">
-              escolha o banco
-            </span>
-          )}
-        </label>
-        {banks.length === 0 ? (
-          <p className="text-xs text-text-tertiary">
-            Nenhum banco cadastrado. Cadastre um em “Gerenciar Bancos” para lançar transações.
-          </p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {banks.map((bank) => {
-              const selected = form.bankId === bank.id
-              const selectedClass = isIncome
-                ? 'border-success bg-success/10 shadow-sm'
-                : 'border-accent bg-accent/10 shadow-sm'
-              const textClass = isIncome ? 'text-success' : 'text-accent'
-              return (
-                <button
-                  key={bank.id}
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, bankId: bank.id }))}
-                  aria-pressed={selected}
-                  aria-label={`Selecionar banco ${bank.name}`}
-                  className={`px-3 h-14 rounded-xl border-2 flex items-center gap-2 transition-all duration-200 ${
-                    selected
-                      ? selectedClass
-                      : 'border-border bg-surface-muted hover:border-text-tertiary/30'
-                  }`}
-                >
-                  <span
-                    className="w-2.5 h-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: bank.color }}
-                    aria-hidden="true"
-                  />
-                  <span
-                    className={`text-[10px] font-bold uppercase tracking-tight leading-none ${
-                      selected ? textClass : 'text-text-tertiary'
-                    }`}
-                  >
-                    {bank.name}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        )}
-      </div>
-      )}
+      {/* --- Conta de entrada (só receita) --- */}
+      {isIncome && bankField}
 
       {/* --- Campos exclusivos de despesa --- */}
       {!isIncome && (
@@ -525,7 +527,14 @@ export function TransactionForm({ onSuccess }: TransactionFormProps) {
             </div>
           </div>
 
-          {/* Parcelas (só cartão de crédito) */}
+          {/* Conta de origem: só quando o dinheiro sai da conta (dinheiro/PIX) */}
+          {bankNeeded && bankField}
+          {isFixedExpense && isCashPayment && (
+            <p className="rounded-xl border border-dashed border-border bg-surface-muted px-4 py-3 text-xs text-text-secondary">
+              Despesa fixa não precisa de banco agora — você escolhe a conta na hora de pagar.
+            </p>
+          )}
+
           {isCreditCard && (
             <div>
               <label className={labelClass}>Parcelas</label>

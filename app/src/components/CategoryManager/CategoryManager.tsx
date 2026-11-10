@@ -207,62 +207,65 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
     const IconComp = getIconByKey(currentIcon)
 
     return (
-      <ManagerShell
-        isOpen={isOpen}
-        onClose={onClose}
-        title={mode === 'add' ? 'Nova categoria' : 'Editar categoria'}
-        subtitle="Escolha um ícone e um nome"
-        accent="#e07a5f"
-        icon={<Tags size={20} />}
-      >
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Ícone clicável */}
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={(e) => openPicker({ kind: mode === 'add' ? 'new' : 'cat', cat: editingCat ?? '' }, e.currentTarget)}
-              className="w-16 h-16 rounded-2xl bg-surface-muted border-2 border-dashed border-border flex items-center justify-center hover:border-accent transition-colors group"
-              title={`Ícone: ${currentIconLabel} — clique para trocar`}
-              aria-label={`Ícone: ${currentIconLabel} — clique para trocar`}
-            >
-              <IconComp size={28} className="text-text-tertiary group-hover:text-accent transition-colors" />
-            </button>
-          </div>
-
-          <div>
-            <label htmlFor="cat-name" className="block text-xs font-medium text-text-secondary mb-1.5 uppercase tracking-wider">
-              Nome
-            </label>
-            <input
-              ref={nameRef}
-              id="cat-name"
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Escape' && cancelEdit()}
-              placeholder="Ex: Alimentação, Transporte..."
-              className="w-full px-4 py-2.5 rounded-xl bg-surface-muted border border-border text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all placeholder:text-text-tertiary"
-              required
-            />
-          </div>
-
-          <div className="flex gap-3 pt-1">
-            <button
-              type="button"
-              onClick={cancelEdit}
-              className="flex-1 py-2.5 px-4 rounded-xl border border-border text-text-secondary hover:bg-surface-muted transition-all text-sm font-medium"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="flex-1 py-2.5 px-4 rounded-xl bg-accent text-white font-semibold hover:bg-accent-hover active:scale-[0.98] transition-all shadow-lg shadow-accent/25 text-sm"
-            >
-              {mode === 'add' ? 'Criar categoria' : 'Salvar'}
-            </button>
-          </div>
-        </form>
-      </ManagerShell>
+      <>
+        <ManagerShell
+          isOpen={isOpen}
+          onClose={onClose}
+          title={mode === 'add' ? 'Nova categoria' : 'Editar categoria'}
+          subtitle="Escolha um ícone e um nome"
+          accent="#e07a5f"
+          icon={<Tags size={20} />}
+        >
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Ícone clicável */}
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={(e) => openPicker({ kind: mode === 'add' ? 'new' : 'cat', cat: editingCat ?? '' }, e.currentTarget)}
+                className="w-16 h-16 rounded-2xl bg-surface-muted border-2 border-dashed border-border flex items-center justify-center hover:border-accent transition-colors group"
+                title={`Ícone: ${currentIconLabel} — clique para trocar`}
+                aria-label={`Ícone: ${currentIconLabel} — clique para trocar`}
+              >
+                <IconComp size={28} className="text-text-tertiary group-hover:text-accent transition-colors" />
+              </button>
+            </div>
+  
+            <div>
+              <label htmlFor="cat-name" className="block text-xs font-medium text-text-secondary mb-1.5 uppercase tracking-wider">
+                Nome
+              </label>
+              <input
+                ref={nameRef}
+                id="cat-name"
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Escape' && cancelEdit()}
+                placeholder="Ex: Alimentação, Transporte..."
+                className="w-full px-4 py-2.5 rounded-xl bg-surface-muted border border-border text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all placeholder:text-text-tertiary"
+                required
+              />
+            </div>
+  
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={cancelEdit}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-border text-text-secondary hover:bg-surface-muted transition-all text-sm font-medium"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="flex-1 py-2.5 px-4 rounded-xl bg-accent text-white font-semibold hover:bg-accent-hover active:scale-[0.98] transition-all shadow-lg shadow-accent/25 text-sm"
+              >
+                {mode === 'add' ? 'Criar categoria' : 'Salvar'}
+              </button>
+            </div>
+          </form>
+        </ManagerShell>
+        {iconPicker}
+      </>
     )
   }
 

@@ -203,7 +203,7 @@ export const DEFAULT_DASHBOARD_ORDER: string[] = [...DASHBOARD_BLOCKS]
  * preservando a ordem que o usuário montou. Ids desconhecidos são descartados.
  */
 export function mergeDashboardOrder(savedOrder: string[], defaults: string[]): string[] {
-  const result = savedOrder.filter((id) => defaults.includes(id))
+  const result = [...new Set(savedOrder)].filter((id) => defaults.includes(id))
   for (const id of defaults) {
     if (result.includes(id)) continue
     let anchor: string | null = null
@@ -438,7 +438,6 @@ export function getCategorySpending(
   for (const cat of categories) spending[cat] = 0
 
   for (const e of expenses) {
-    if (e.isPaid) continue
     const eMonth = startOfMonth(new Date(e.date))
     if (!isEqual(eMonth, target)) continue
 

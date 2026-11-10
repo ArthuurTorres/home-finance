@@ -28,7 +28,7 @@ export interface Toast {
   type: 'success' | 'error' | 'info'
 }
 
-interface ExpenseState {
+export interface ExpenseState {
   // Dados
   expenses: Expense[]
   addExpense: (expense: Omit<Expense, 'id'>) => void
@@ -399,7 +399,8 @@ export const useExpenseStore = create<ExpenseState>()(
 
       setActiveMember: (id) => set({ activeMemberId: id }),
 
-      setDashboardOrder: (order) => set({ dashboardOrder: order }),
+      setDashboardOrder: (order) =>
+        set({ dashboardOrder: mergeDashboardOrder(order, DEFAULT_DASHBOARD_ORDER as string[]) }),
 
       // --- Fluxo de Caixa ---
 

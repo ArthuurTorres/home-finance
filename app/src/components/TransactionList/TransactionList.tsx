@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Virtuoso } from 'react-virtuoso'
 import { useExpenseStore } from '../../store/useExpenseStore'
 import { formatBRL, CARDS, ESSENTIALITY_OPTIONS, getEssentialityMeta } from '../../utils/finance'
 import type { Expense } from '../../utils/finance'
+import { Pencil, Check, RotateCcw, Trash2 } from 'lucide-react'
 import { AvatarIcon } from '../AvatarIcon/AvatarIcon'
-import { BankPickerModal } from '../BankPickerModal/BankPickerModal'
 
 export function TransactionList() {
   const expenses = useExpenseStore((s) => s.expenses)
@@ -16,9 +16,6 @@ export function TransactionList() {
   const removeExpense = useExpenseStore((s) => s.removeExpense)
   const setEditingId = useExpenseStore((s) => s.setEditingId)
   const togglePaid = useExpenseStore((s) => s.togglePaid)
-  const updateExpense = useExpenseStore((s) => s.updateExpense)
-  // Despesa sem banco: a conta é escolhida agora, no momento de pagar.
-  const [pendingPayment, setPendingPayment] = useState<Expense | null>(null)
 
   const sorted = useMemo(() => {
     const filtered = expenses.filter((e: Expense) => {
@@ -358,34 +355,37 @@ export function TransactionList() {
                   </div>
 
                   {/* Ações (visíveis no hover) */}
-                  <div className="flex-shrink-0 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex-shrink-0 w-[82px] flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => setEditingId(expense.id)}
-                      className="p-1.5 text-nude-400 hover:text-nude-600 hover:bg-nude-100 rounded-lg transition-colors"
+                      className="p-1.5 rounded-lg text-nude-400 hover:text-nude-600 hover:bg-nude-100 transition-colors"
                       title="Editar"
+                      aria-label={`Editar ${expense.description}`}
                     >
-                      ✏️
+                      <Pencil size={14} />
                     </button>
-                    <button
-                      onClick={() => {
-                        if (!isPaid && !expense.bankId) setPendingPayment(expense)
-                        else togglePaid(expense.id)
-                      }}
-                      className={`p-1.5 rounded-lg transition-colors ${
-                        isPaid
-                          ? 'text-amber-500 hover:bg-amber-50'
-                          : 'text-green-500 hover:bg-green-50'
-                      }`}
-                      title={isPaid ? 'Reabrir' : 'Marcar como paga'}
-                    >
-                      {isPaid ? '↩️' : '✅'}
-                    </button>
+                    {/* Marcar como paga só faz sentido em conta fixa: as comuns já nascem pagas */}
+                    {expense.isRecurring && (
+                      <button
+                        onClick={() => togglePaid(expense.id)}
+                        className={`p-1.5 rounded-lg transition-colors ${
+                          isPaid
+                            ? 'text-amber-600 hover:bg-amber-50'
+                            : 'text-green-600 hover:bg-green-50'
+                        }`}
+                        title={isPaid ? 'Reabrir' : 'Marcar como paga'}
+                        aria-label={isPaid ? 'Reabrir' : 'Marcar como paga'}
+                      >
+                        {isPaid ? <RotateCcw size={14} /> : <Check size={14} />}
+                      </button>
+                    )}
                     <button
                       onClick={() => removeExpense(expense.id)}
-                      className="p-1.5 text-nude-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      className="p-1.5 rounded-lg text-nude-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                       title="Excluir"
+                      aria-label={`Excluir ${expense.description}`}
                     >
-                      🗑️
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 </div>
@@ -395,17 +395,6 @@ export function TransactionList() {
         </div>
       )}
 
-      <BankPickerModal
-        isOpen={pendingPayment !== null}
-        description={pendingPayment?.description ?? ''}
-        amount={pendingPayment?.amount ?? 0}
-        onClose={() => setPendingPayment(null)}
-        onConfirm={(bankId) => {
-          if (!pendingPayment) return
-          updateExpense(pendingPayment.id, { bankId, isPaid: true })
-          setPendingPayment(null)
-        }}
-      />
     </div>
   )
 }

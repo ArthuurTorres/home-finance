@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useAuth } from './contexts/AuthContext'
 import { LoginScreen } from './components/LoginScreen/LoginScreen'
 import { useExpenseStore } from './store/useExpenseStore'
+import { startSync, stopSync } from './lib/syncBridge'
 import { TransactionList } from './components/TransactionList/TransactionList'
 import { SmartInsights } from './components/SmartInsights/SmartInsights'
 import { Projections } from './components/Projections/Projections'
@@ -32,6 +33,9 @@ import { getBankSummary, type DashboardBlockId } from './utils/finance'
 
 export default function App() {
   const { user, loading, signOut } = useAuth()
+  // O objeto `user` do Supabase é recriado a cada refresh de token; o id é estável
+  // e evita reiniciar a sincronização (e baixar tudo de novo) sem necessidade.
+  const userId = user?.id
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
@@ -51,6 +55,14 @@ export default function App() {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [isNavOpen])
+
+  useEffect(() => {
+    if (!userId) {
+      stopSync()
+      return
+    }
+    return startSync(userId, (message) => useExpenseStore.getState().addToast(message, 'info'))
+  }, [userId])
 
   const expenses = useExpenseStore((s) => s.expenses)
   const filters = useExpenseStore((s) => s.filters)

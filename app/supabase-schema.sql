@@ -1,118 +1,128 @@
--- Home Finance - Schema Supabase
--- Execute este script no SQL Editor do Supabase (https://supabase.com/dashboard/project/vkvakbgtkwfpzntzgpsn/sql)
+-- Home Finance — Schema de persistência
+-- Aplicado no projeto Supabase (vkvakbgtkwfpzntzgpsn).
+-- Escopo: um dono por linha (user_id), protegido por RLS. Valores monetários em centavos.
 
--- 1. Tabela de Casas (Comunidades)
-CREATE TABLE IF NOT EXISTS houses (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  invite_code TEXT UNIQUE NOT NULL DEFAULT substr(md5(random()::text), 1, 8),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
+-- 1. Transações ---------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.expenses (
+  id                UUID PRIMARY KEY,
+  user_id           UUID NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  description       TEXT NOT NULL,
+  date              TIMESTAMPTZ NOT NULL,
+  amount_cents      INTEGER NOT NULL CHECK (amount_cents >= 0),
+  due_day           INTEGER NOT NULL CHECK (due_day BETWEEN 1 AND 31),
+  installments      INTEGER NOT NULL DEFAULT 1 CHECK (installments > 0),
+  paid_installments INTEGER NOT NULL DEFAULT 0 CHECK (paid_installments >= 0),
+  is_paid           BOOLEAN NOT NULL DEFAULT FALSE,
+  is_recurring      BOOLEAN NOT NULL DEFAULT FALSE,
+  category          TEXT NOT NULL,
+  card_id           TEXT NOT NULL,
+  bank_id           TEXT,
+  type              TEXT NOT NULL DEFAULT 'expense' CHECK (type IN ('income', 'expense')),
+  member_id         UUID,
+  essentiality      TEXT CHECK (essentiality IN ('essential', 'necessary', 'extra')),
+  tags              TEXT[] NOT NULL DEFAULT '{}',
+  privacy           TEXT CHECK (privacy IN ('family', 'personal')),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- 2. Tabela de Membros da Casa
-CREATE TABLE IF NOT EXISTS house_members (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  house_id UUID REFERENCES houses(id) ON DELETE CASCADE,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  role TEXT CHECK (role IN ('owner', 'admin', 'member')) DEFAULT 'member',
-  display_name TEXT NOT NULL,
-  avatar_type TEXT,
-  joined_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(house_id, user_id)
+CREATE INDEX IF NOT EXISTS expenses_user_date_idx ON public.expenses (user_id, date DESC);
+CREATE INDEX IF NOT EXISTS expenses_user_month_idx ON public.expenses (user_id, type);
+
+-- 2. Bancos (onde a receita entra) --------------------------------------------
+CREATE TABLE IF NOT EXISTS public.banks (
+  user_id    UUID NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  id         TEXT NOT NULL,
+  name       TEXT NOT NULL,
+  color      TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, id)
 );
 
--- 3. Tabela de Convites
-CREATE TABLE IF NOT EXISTS invitations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  house_id UUID REFERENCES houses(id) ON DELETE CASCADE,
-  invited_by UUID REFERENCES auth.users(id),
-  phone_or_email TEXT NOT NULL,
-  status TEXT CHECK (status IN ('pending', 'accepted', 'expired')) DEFAULT 'pending',
-  code TEXT UNIQUE NOT NULL DEFAULT substr(md5(random()::text), 1, 8),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  expires_at TIMESTAMPTZ DEFAULT (now() + interval '7 days')
+-- 3. Cartões de crédito -------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.cards (
+  user_id    UUID NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  id         TEXT NOT NULL,
+  name       TEXT NOT NULL,
+  color      TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, id)
 );
 
--- 4. Tabela de Transações (Expenses)
-CREATE TABLE IF NOT EXISTS expenses (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  house_id UUID REFERENCES houses(id) ON DELETE CASCADE,
-  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-  amount_cents INT NOT NULL,
-  category_id TEXT NOT NULL,
-  card_id TEXT,
-  description TEXT NOT NULL,
-  date DATE NOT NULL,
-  is_income BOOLEAN DEFAULT false,
-  paid BOOLEAN DEFAULT true,
-  essentiality TEXT CHECK (essentiality IN ('essential', 'necessary', 'extra')),
-  tags TEXT[],
-  privacy TEXT CHECK (privacy IN ('private', 'shared')) DEFAULT 'shared',
-  installment_total INT,
-  installment_current INT,
-  group_id UUID,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
+-- 4. Categorias (nome + ícone) ------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.categories (
+  user_id    UUID NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  icon       TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, name)
 );
 
--- 5. Habilitar Row Level Security (RLS)
-ALTER TABLE houses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE house_members ENABLE ROW LEVEL SECURITY;
-ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
+-- 5. Membros da casa ----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.members (
+  id         UUID PRIMARY KEY,
+  user_id    UUID NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  color      TEXT NOT NULL,
+  avatar     TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
--- 6. Políticas de Acesso (RLS)
--- Houses: membros podem ver suas casas
-CREATE POLICY "Members can view their houses"
-  ON houses FOR SELECT
-  USING (id IN (SELECT house_id FROM house_members WHERE user_id = auth.uid()));
+-- 6. Orçamento mensal por categoria ------------------------------------------
+CREATE TABLE IF NOT EXISTS public.budgets (
+  user_id     UUID NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  category    TEXT NOT NULL,
+  limit_cents INTEGER NOT NULL CHECK (limit_cents >= 0),
+  PRIMARY KEY (user_id, category)
+);
 
--- House Members: usuários podem ver membros da sua casa
-CREATE POLICY "Members can view house members"
-  ON house_members FOR SELECT
-  USING (house_id IN (SELECT house_id FROM house_members WHERE user_id = auth.uid()));
+-- 7. Metas de poupança --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.goals (
+  id            UUID PRIMARY KEY,
+  user_id       UUID NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  name          TEXT NOT NULL,
+  target_cents  INTEGER NOT NULL CHECK (target_cents > 0),
+  current_cents INTEGER NOT NULL DEFAULT 0 CHECK (current_cents >= 0),
+  deadline      TEXT,
+  color         TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
--- Invitations: usuários podem ver convites da sua casa
-CREATE POLICY "Members can view invitations"
-  ON invitations FOR SELECT
-  USING (house_id IN (SELECT house_id FROM house_members WHERE user_id = auth.uid()));
+-- 8. Preferências de interface ------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.preferences (
+  user_id          UUID PRIMARY KEY DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  dashboard_order  TEXT[] NOT NULL DEFAULT '{}',
+  active_member_id UUID,
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
--- Expenses: membros podem ver transações da sua casa
-CREATE POLICY "Members can view expenses"
-  ON expenses FOR SELECT
-  USING (house_id IN (SELECT house_id FROM house_members WHERE user_id = auth.uid()));
+-- 9. Row Level Security -------------------------------------------------------
+ALTER TABLE public.expenses    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.banks       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cards       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.categories  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.members     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.budgets     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.goals       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.preferences ENABLE ROW LEVEL SECURITY;
 
--- Expenses: membros podem inserir transações na sua casa
-CREATE POLICY "Members can insert expenses"
-  ON expenses FOR INSERT
-  WITH CHECK (house_id IN (SELECT house_id FROM house_members WHERE user_id = auth.uid()));
-
--- Expenses: membros podem atualizar suas próprias transações
-CREATE POLICY "Members can update own expenses"
-  ON expenses FOR UPDATE
-  USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
-
--- 7. Função para criar casa e adicionar owner automaticamente
-CREATE OR REPLACE FUNCTION create_house_with_owner(
-  house_name TEXT,
-  owner_display_name TEXT,
-  owner_avatar_type TEXT DEFAULT NULL
-)
-RETURNS UUID AS $$
+-- Política única por tabela: o dono enxerga e altera apenas as próprias linhas.
+DO $$
 DECLARE
-  new_house_id UUID;
+  t TEXT;
 BEGIN
-  INSERT INTO houses (name) VALUES (house_name) RETURNING id INTO new_house_id;
-  INSERT INTO house_members (house_id, user_id, role, display_name, avatar_type)
-  VALUES (new_house_id, auth.uid(), 'owner', owner_display_name, owner_avatar_type);
-  RETURN new_house_id;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+  FOREACH t IN ARRAY ARRAY['expenses','banks','cards','categories','members','budgets','goals','preferences']
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_owner_all', t);
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR ALL TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid())',
+      t || '_owner_all', t
+    );
+  END LOOP;
+END $$;
 
--- 8. Trigger para atualizar updated_at automaticamente
-CREATE OR REPLACE FUNCTION update_updated_at_column()
+-- 10. updated_at automático ---------------------------------------------------
+CREATE OR REPLACE FUNCTION public.touch_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
   NEW.updated_at = now();
@@ -120,10 +130,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER set_updated_at
-  BEFORE UPDATE ON houses
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS expenses_touch_updated_at ON public.expenses;
+CREATE TRIGGER expenses_touch_updated_at
+  BEFORE UPDATE ON public.expenses
+  FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
 
-CREATE TRIGGER set_updated_at
-  BEFORE UPDATE ON expenses
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS preferences_touch_updated_at ON public.preferences;
+CREATE TRIGGER preferences_touch_updated_at
+  BEFORE UPDATE ON public.preferences
+  FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();

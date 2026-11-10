@@ -53,16 +53,16 @@ export function CategoryChart() {
 
       {/* Gráfico Centralizado + Total */}
       <div className="flex flex-col items-center py-2">
-        <div className="w-40 h-40 relative">
+        <div className="w-48 h-48 relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={data}
                 cx="50%"
                 cy="50%"
-                innerRadius={45}
-                outerRadius={70}
-                paddingAngle={3}
+                innerRadius={66}
+                outerRadius={86}
+                paddingAngle={data.length > 1 ? 3 : 0}
                 dataKey="value"
                 stroke="none"
               >
@@ -92,9 +92,15 @@ export function CategoryChart() {
           
           {/* Total centralizado no donut */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="text-center">
-              <p className="text-[9px] uppercase tracking-wider text-text-tertiary mb-0.5">Total</p>
-              <p className="text-base font-bold text-text-primary leading-tight">{formatBRL(total)}</p>
+            <div className="text-center px-1 max-w-[112px]">
+              <p className="text-[10px] uppercase tracking-widest text-text-tertiary mb-1">Total</p>
+              <p
+                className={`font-bold text-text-primary leading-tight tabular-nums ${
+                  formatBRL(total).length > 12 ? 'text-xs' : 'text-sm'
+                }`}
+              >
+                {formatBRL(total)}
+              </p>
             </div>
           </div>
         </div>
